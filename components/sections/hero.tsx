@@ -3,7 +3,6 @@
 import {
   ArrowRight01Icon,
   Mail01Icon,
-  Shield01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
@@ -20,7 +19,6 @@ import {
   UsdtLogo,
 } from "@/components/logos";
 import { ConnectButton } from "@/components/solana/connect-button";
-import { Badge } from "@/components/ui/badge";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -138,17 +136,7 @@ export function Hero() {
       </div>
 
       <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col items-start px-6 pt-24 pb-32 sm:px-10 sm:pt-32 sm:pb-40">
-        <Badge className="gap-2 px-3">
-          <HugeiconsIcon
-            icon={Shield01Icon}
-            size={12}
-            strokeWidth={2}
-            className="text-primary"
-          />
-          Private payroll on Solana
-        </Badge>
-
-        <h1 className="mt-7 max-w-3xl text-[44px] font-semibold leading-[1.05] tracking-tight text-foreground sm:text-[64px]">
+        <h1 className="max-w-3xl text-[44px] font-semibold leading-[1.05] tracking-tight text-foreground sm:text-[64px]">
           Your payroll is public on Solana.
           <br />
           <span className="text-muted-foreground">
@@ -200,13 +188,9 @@ export function Hero() {
             Works with
           </p>
           <ul className="flex flex-wrap items-center gap-x-6 gap-y-3 text-muted-foreground">
-            <LogoChip Logo={SolanaLogo} label="Solana" />
+            <LogoChip Logo={SolanaLogo} label="SOL" />
             <LogoChip Logo={UsdcLogo} label="USDC" />
             <LogoChip Logo={UsdtLogo} label="USDT" />
-            <LogoChip Logo={PhantomLogo} label="Phantom" />
-            <LogoChip Logo={SolflareLogo} label="Solflare" />
-            <LogoChip Logo={BackpackLogo} label="Backpack" />
-            <LogoChip Logo={CloakLogo} label="Cloak SDK" />
           </ul>
         </div>
       </div>
