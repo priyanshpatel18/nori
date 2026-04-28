@@ -46,75 +46,61 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Brand tokens — black + amber/yellow only */
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-foreground: var(--brand-foreground);
 }
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
+/*
+ * Black + amber-yellow theme. One mode only — there is no light mode.
+ * Both `:root` and `.dark` resolve to the same palette so existing `dark:`
+ * variants still match without changing colors.
+ */
+:root,
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: oklch(0.04 0 0);              /* near-pure black */
+  --foreground: oklch(0.95 0.012 90);         /* warm off-white */
+  --card: oklch(0.07 0 0);
+  --card-foreground: oklch(0.95 0.012 90);
+  --popover: oklch(0.09 0 0);
+  --popover-foreground: oklch(0.95 0.012 90);
+
+  --primary: oklch(0.84 0.165 84);            /* amber-yellow CTA */
+  --primary-foreground: oklch(0.08 0 0);
+  --secondary: oklch(0.16 0 0);
+  --secondary-foreground: oklch(0.92 0 0);
+  --muted: oklch(0.13 0 0);
+  --muted-foreground: oklch(0.62 0.01 90);
+  --accent: oklch(0.84 0.165 84);
+  --accent-foreground: oklch(0.08 0 0);
+  --destructive: oklch(0.65 0.22 28);
+
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 6%);
+  --ring: oklch(0.84 0.165 84 / 50%);
+
+  --chart-1: oklch(0.84 0.165 84);
+  --chart-2: oklch(0.7 0.14 84);
+  --chart-3: oklch(0.55 0.11 84);
+  --chart-4: oklch(0.4 0.08 84);
+  --chart-5: oklch(0.25 0.04 84);
+
+  --radius: 0.625rem;
+
+  --sidebar: oklch(0.06 0 0);
+  --sidebar-foreground: oklch(0.95 0 0);
+  --sidebar-primary: oklch(0.84 0.165 84);
+  --sidebar-primary-foreground: oklch(0.08 0 0);
+  --sidebar-accent: oklch(0.16 0 0);
+  --sidebar-accent-foreground: oklch(0.95 0 0);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.84 0.165 84 / 50%);
+
+  --brand: oklch(0.84 0.165 84);
+  --brand-soft: oklch(0.84 0.165 84 / 12%);
+  --brand-foreground: oklch(0.08 0 0);
 }
 
 @layer base {
@@ -122,17 +108,24 @@
     @apply border-border outline-ring/50;
   }
 
+  html {
+    @apply font-sans;
+    color-scheme: dark;
+    background: var(--background);
+  }
+
   body {
     @apply bg-background text-foreground;
   }
 
-  html {
-    @apply font-sans;
+  ::selection {
+    background: var(--brand);
+    color: var(--brand-foreground);
   }
 }
 
 @layer components {
-  /* Solana wallet-adapter-react — styled with shadcn semantic tokens */
+  /* Solana wallet-adapter-react — styled with the black + amber tokens */
 
   .wallet-adapter-button {
     background-color: transparent;
@@ -154,10 +147,11 @@
   .wallet-adapter-button.wallet-adapter-button-trigger {
     background-color: var(--primary);
     color: var(--primary-foreground);
-    border: 2px solid var(--foreground);
+    border: 1px solid color-mix(in oklch, var(--primary) 60%, transparent);
     font-weight: 700;
-    box-shadow: 2px 2px 0 0
-      color-mix(in oklch, var(--foreground) 22%, var(--primary));
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.5) inset,
+      0 8px 24px -8px color-mix(in oklch, var(--primary) 55%, transparent);
   }
 
   .wallet-adapter-button:not([disabled]):focus-visible {
@@ -166,9 +160,9 @@
   }
 
   .wallet-adapter-button:not([disabled]):hover {
-    background-color: var(--primary);
+    background-color: color-mix(in oklch, var(--primary) 92%, white);
     color: var(--primary-foreground);
-    border-color: var(--foreground);
+    border-color: color-mix(in oklch, var(--primary) 80%, transparent);
   }
 
   .wallet-adapter-button[disabled] {
@@ -202,7 +196,7 @@
     border-radius: var(--radius-lg);
     box-shadow:
       0 10px 38px -10px
-        color-mix(in oklch, var(--foreground) 40%, transparent);
+        color-mix(in oklch, black 70%, transparent);
     padding: 0.5rem;
   }
 
@@ -214,12 +208,12 @@
   }
 
   .wallet-adapter-dropdown-list-item:not([disabled]):hover {
-    background-color: var(--accent);
-    color: var(--accent-foreground);
+    background-color: var(--muted);
+    color: var(--foreground);
   }
 
   .wallet-adapter-modal-overlay {
-    background: color-mix(in oklch, var(--foreground) 70%, transparent);
+    background: color-mix(in oklch, black 70%, transparent);
     backdrop-filter: blur(8px);
   }
 
@@ -229,8 +223,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
     box-shadow:
-      0 25px 80px
-        color-mix(in oklch, var(--foreground) 45%, transparent);
+      0 25px 80px color-mix(in oklch, black 70%, transparent);
   }
 
   .wallet-adapter-modal-wrapper .wallet-adapter-button {
@@ -245,8 +238,8 @@
   }
 
   .wallet-adapter-modal-wrapper .wallet-adapter-button:hover {
-    background-color: var(--accent);
-    color: var(--accent-foreground);
+    background-color: var(--muted);
+    color: var(--foreground);
     border-color: transparent;
   }
 
@@ -272,8 +265,8 @@
   }
 
   .wallet-adapter-modal-button-close:hover {
-    background: var(--accent);
-    color: var(--accent-foreground);
+    background: var(--secondary);
+    color: var(--foreground);
   }
 
   .wallet-adapter-modal-button-close svg {
@@ -296,11 +289,12 @@
   .wallet-adapter-modal-middle-button {
     background-color: var(--primary);
     color: var(--primary-foreground);
-    border: 2px solid var(--foreground);
+    border: 1px solid color-mix(in oklch, var(--primary) 60%, transparent);
     border-radius: var(--radius-md);
     font-weight: 700;
-    box-shadow: 2px 2px 0 0
-      color-mix(in oklch, var(--foreground) 22%, var(--primary));
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.5) inset,
+      0 8px 24px -8px color-mix(in oklch, var(--primary) 55%, transparent);
   }
 
   .wallet-adapter-modal-middle-button:hover {

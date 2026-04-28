@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { FancyButton } from "@/components/ui/fancy-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Spotlight } from "@/components/ui/spotlight";
 
 function formatPublicKey(publicKeyBase58: string) {
   return `${publicKeyBase58.slice(0, 4)}…${publicKeyBase58.slice(-4)}`;
@@ -46,15 +48,15 @@ export function ConnectButton() {
   if (!connected || !publicKey) {
     return (
       <>
-        <Button
+        <FancyButton
           type="button"
           onClick={() => setIsDialogOpen(true)}
           disabled={isBusy}
           size="lg"
-          className="px-5"
+          variant="primary"
         >
           {connecting ? "Connecting…" : "Connect wallet"}
-        </Button>
+        </FancyButton>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent>
@@ -67,7 +69,8 @@ export function ConnectButton() {
 
             <div className="grid gap-2">
               {connectableWallets.map((w) => {
-                const isDisabled = w.readyState === WalletReadyState.Unsupported;
+                const isDisabled =
+                  w.readyState === WalletReadyState.Unsupported;
                 const subtitle =
                   w.readyState === WalletReadyState.Installed
                     ? "Installed"
@@ -78,43 +81,44 @@ export function ConnectButton() {
                         : undefined;
 
                 return (
-                  <Button
-                    key={w.adapter.name}
-                    type="button"
-                    variant="outline"
-                    className="h-auto justify-start gap-3 py-3"
-                    disabled={isDisabled || isBusy}
-                    onClick={() => {
-                      select(w.adapter.name);
-                      setIsDialogOpen(false);
-                    }}
-                  >
-                    {w.adapter.icon ? (
-                      <Image
-                        src={w.adapter.icon}
-                        alt={`${w.adapter.name} icon`}
-                        width={20}
-                        height={20}
-                        unoptimized
-                        className="size-5 shrink-0 rounded-sm"
-                      />
-                    ) : (
-                      <span
-                        aria-hidden="true"
-                        className="size-5 shrink-0 rounded-sm bg-muted"
-                      />
-                    )}
-                    <span className="flex flex-col items-start">
-                      <span className="text-sm font-medium">
-                        {w.adapter.name}
-                      </span>
-                      {subtitle && (
-                        <span className="text-xs text-muted-foreground">
-                          {subtitle}
-                        </span>
+                  <Spotlight key={w.adapter.name} className="rounded-xl">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-auto w-full justify-start gap-3 py-3"
+                      disabled={isDisabled || isBusy}
+                      onClick={() => {
+                        select(w.adapter.name);
+                        setIsDialogOpen(false);
+                      }}
+                    >
+                      {w.adapter.icon ? (
+                        <Image
+                          src={w.adapter.icon}
+                          alt={`${w.adapter.name} icon`}
+                          width={20}
+                          height={20}
+                          unoptimized
+                          className="size-5 shrink-0 rounded-sm"
+                        />
+                      ) : (
+                        <span
+                          aria-hidden="true"
+                          className="size-5 shrink-0 rounded-sm bg-muted"
+                        />
                       )}
-                    </span>
-                  </Button>
+                      <span className="flex flex-col items-start">
+                        <span className="text-sm font-medium">
+                          {w.adapter.name}
+                        </span>
+                        {subtitle && (
+                          <span className="text-xs text-muted-foreground">
+                            {subtitle}
+                          </span>
+                        )}
+                      </span>
+                    </Button>
+                  </Spotlight>
                 );
               })}
             </div>
@@ -165,14 +169,13 @@ export function ConnectButton() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Switch wallet</DialogTitle>
-            <DialogDescription>
-              Select a different wallet.
-            </DialogDescription>
+            <DialogDescription>Select a different wallet.</DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-2">
             {connectableWallets.map((w) => {
-              const isDisabled = w.readyState === WalletReadyState.Unsupported;
+              const isDisabled =
+                w.readyState === WalletReadyState.Unsupported;
               const subtitle =
                 w.readyState === WalletReadyState.Installed
                   ? "Installed"
@@ -183,41 +186,44 @@ export function ConnectButton() {
                       : undefined;
 
               return (
-                <Button
-                  key={w.adapter.name}
-                  type="button"
-                  variant="outline"
-                  className="h-auto justify-start gap-3 py-3"
-                  disabled={isDisabled || isBusy}
-                  onClick={() => {
-                    select(w.adapter.name);
-                    setIsDialogOpen(false);
-                  }}
-                >
-                  {w.adapter.icon ? (
-                    <Image
-                      src={w.adapter.icon}
-                      alt={`${w.adapter.name} icon`}
-                      width={20}
-                      height={20}
-                      unoptimized
-                      className="size-5 shrink-0 rounded-sm"
-                    />
-                  ) : (
-                    <span
-                      aria-hidden="true"
-                      className="size-5 shrink-0 rounded-sm bg-muted"
-                    />
-                  )}
-                  <span className="flex flex-col items-start">
-                    <span className="text-sm font-medium">{w.adapter.name}</span>
-                    {subtitle && (
-                      <span className="text-xs text-muted-foreground">
-                        {subtitle}
-                      </span>
+                <Spotlight key={w.adapter.name} className="rounded-xl">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-auto w-full justify-start gap-3 py-3"
+                    disabled={isDisabled || isBusy}
+                    onClick={() => {
+                      select(w.adapter.name);
+                      setIsDialogOpen(false);
+                    }}
+                  >
+                    {w.adapter.icon ? (
+                      <Image
+                        src={w.adapter.icon}
+                        alt={`${w.adapter.name} icon`}
+                        width={20}
+                        height={20}
+                        unoptimized
+                        className="size-5 shrink-0 rounded-sm"
+                      />
+                    ) : (
+                      <span
+                        aria-hidden="true"
+                        className="size-5 shrink-0 rounded-sm bg-muted"
+                      />
                     )}
-                  </span>
-                </Button>
+                    <span className="flex flex-col items-start">
+                      <span className="text-sm font-medium">
+                        {w.adapter.name}
+                      </span>
+                      {subtitle && (
+                        <span className="text-xs text-muted-foreground">
+                          {subtitle}
+                        </span>
+                      )}
+                    </span>
+                  </Button>
+                </Spotlight>
               );
             })}
           </div>
