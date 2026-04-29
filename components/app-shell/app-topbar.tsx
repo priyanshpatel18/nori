@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 
+import { ClusterBadge } from "@/components/solana/cluster-badge";
 import { ConnectButton } from "@/components/solana/connect-button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
@@ -56,6 +57,7 @@ export function AppTopbar() {
         </motion.div>
       </div>
 
+      <ClusterBadge />
       <ConnectButton />
     </header>
   );

@@ -1,8 +1,8 @@
 import {
   ArrowRight01Icon,
   CheckmarkCircle01Icon,
-  Plug01Icon,
   MailSend01Icon,
+  Plug01Icon,
   Upload01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -63,31 +63,31 @@ function HowItWorks() {
     body: string;
     icon: typeof Plug01Icon;
   }[] = [
-    {
-      n: "01",
-      title: "Connect your treasury wallet",
-      icon: Plug01Icon,
-      body: "Phantom, Solflare, Backpack, or any Solana wallet. No new keys, no new app to install.",
-    },
-    {
-      n: "02",
-      title: "Upload a CSV of your team",
-      icon: Upload01Icon,
-      body: "Names, addresses, amounts, tokens. Save the roster once and reuse it every cycle.",
-    },
-    {
-      n: "03",
-      title: "Run payroll in one click",
-      icon: MailSend01Icon,
-      body: "Each payment is a Groth16 proof, generated in your browser, settled on Solana. The chain sees a transaction. Nothing else.",
-    },
-    {
-      n: "04",
-      title: "Export when your auditor asks",
-      icon: CheckmarkCircle01Icon,
-      body: "Share a viewing key with one accountant. They see your records. The chain still sees nothing.",
-    },
-  ];
+      {
+        n: "01",
+        title: "Connect your treasury wallet",
+        icon: Plug01Icon,
+        body: "Phantom, Solflare, Backpack, or any Solana wallet. No new keys, no new app to install.",
+      },
+      {
+        n: "02",
+        title: "Upload a CSV of your team",
+        icon: Upload01Icon,
+        body: "Names, addresses, amounts, tokens. Save the roster once and reuse it every cycle.",
+      },
+      {
+        n: "03",
+        title: "Run payroll in one click",
+        icon: MailSend01Icon,
+        body: "Each payment is a Groth16 proof, generated in your browser, settled on Solana. The chain sees a transaction. Nothing else.",
+      },
+      {
+        n: "04",
+        title: "Export when your auditor asks",
+        icon: CheckmarkCircle01Icon,
+        body: "Share a viewing key with one accountant. They see your records. The chain still sees nothing.",
+      },
+    ];
   return (
     <section
       id="how"

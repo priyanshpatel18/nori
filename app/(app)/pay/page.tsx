@@ -10,6 +10,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { isAddress } from "@solana/kit";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
 import { AnimatePresence, motion } from "motion/react";
 import * as React from "react";
 
@@ -18,17 +19,24 @@ import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useShieldDeposit } from "@/lib/cloak/use-shield-deposit";
+import {
+  getShieldToken,
+  isShieldTokenSupported,
+  toBaseUnits,
+  type ShieldTokenId,
+} from "@/lib/cloak/tokens";
+import { useFastSend } from "@/lib/cloak/use-fast-send";
+import { solanaConfig } from "@/lib/solana/config";
 import { explorerTxUrl } from "@/lib/solana/explorer";
 import { cn } from "@/lib/utils";
 
 const TOKENS = [
   { id: "SOL", label: "SOL", Logo: SolanaLogo, decimals: 9, min: 0.01 },
-  { id: "USDC", label: "USDC", Logo: UsdcLogo, decimals: 6, min: 0 },
-  { id: "USDT", label: "USDT", Logo: UsdtLogo, decimals: 6, min: 0 },
+  { id: "USDC", label: "USDC", Logo: UsdcLogo, decimals: 6, min: 0.01 },
+  { id: "USDT", label: "USDT", Logo: UsdtLogo, decimals: 6, min: 0.01 },
 ] as const;
 
-type TokenId = (typeof TOKENS)[number]["id"];
+type TokenId = (typeof TOKENS)[number]["id"] & ShieldTokenId;
 
 type AmountError =
   | { kind: "format" }
@@ -105,7 +113,7 @@ export default function PayPage() {
   const [recipientTouched, setRecipientTouched] = React.useState(false);
 
   const wallet = useWallet();
-  const shieldDeposit = useShieldDeposit();
+  const fastSend = useFastSend();
 
   const amountError = React.useMemo(
     () => validateAmount(amount, token),
@@ -121,11 +129,13 @@ export default function PayPage() {
 
   const amountValid = !amountError && amount.trim() !== "";
   const addressValid = !addressError && recipient.trim() !== "";
-  const tokenSupported = token === "SOL";
+  const shieldToken = React.useMemo(() => getShieldToken(token), [token]);
+  const tokenSupported = isShieldTokenSupported(token);
   const submitting =
-    shieldDeposit.status === "deriving-key" ||
-    shieldDeposit.status === "building-proof" ||
-    shieldDeposit.status === "submitting";
+    fastSend.status === "deposit-proof" ||
+    fastSend.status === "deposit-submit" ||
+    fastSend.status === "withdraw-proof" ||
+    fastSend.status === "withdraw-submit";
   const canSubmit =
     amountValid &&
     addressValid &&
@@ -136,6 +146,22 @@ export default function PayPage() {
   const numericAmount = amountValid ? Number(amount) : 0;
   const variableFee = numericAmount * 0.003;
   const total = numericAmount + variableFee;
+  const recipientReceives =
+    numericAmount > 0
+      ? Math.max(
+          0,
+          numericAmount - variableFee - (token === "SOL" ? 0.005 : 0),
+        )
+      : 0;
+  const recipientHint: React.ReactNode =
+    numericAmount > 0 && recipientReceives > 0 ? (
+      <>
+        Recipient gets{" "}
+        <span className="font-medium text-yellow-600 dark:text-yellow-400">
+          ~{formatAmount(recipientReceives)} {token}
+        </span>
+      </>
+    ) : undefined;
 
   return (
     <>
@@ -156,14 +182,16 @@ export default function PayPage() {
             setAmountTouched(true);
             setRecipientTouched(true);
             if (!amountValid || !addressValid) return;
-            if (!tokenSupported) return;
+            if (!shieldToken) return;
             if (!wallet.connected) return;
             try {
-              await shieldDeposit.deposit({
-                amountLamports: solToLamports(amount),
+              await fastSend.send({
+                amountBaseUnits: toBaseUnits(amount, shieldToken.decimals),
+                mint: shieldToken.mint,
+                recipient: new PublicKey(recipient.trim()),
               });
             } catch {
-              // surfaced via shieldDeposit.error
+              // surfaced via fastSend.error
             }
           }}
           noValidate
@@ -279,6 +307,7 @@ export default function PayPage() {
             </div>
             <FieldFootnote
               id="amount"
+              hint={recipientHint}
               error={showAmountError ? amountErrorMessage(amountError!) : null}
             />
           </div>
@@ -298,7 +327,7 @@ export default function PayPage() {
               className="self-start"
               disabled={!canSubmit}
             >
-              {submitButtonLabel(shieldDeposit.status, wallet.connected)}
+              {submitButtonLabel(fastSend.status, wallet.connected)}
               <HugeiconsIcon
                 icon={ArrowRight01Icon}
                 size={14}
@@ -308,33 +337,49 @@ export default function PayPage() {
 
             {!tokenSupported && (
               <p className="text-[12px] text-muted-foreground">
-                {token} deposits are not yet wired. Switch to SOL to shield.
+                {token} is not available on {solanaConfig.cluster}.
               </p>
             )}
 
-            {submitting && shieldDeposit.progress && (
-              <p className="text-[12px] text-muted-foreground">
-                {shieldDeposit.progress}
-              </p>
+            <ProofProgress
+              show={submitting && fastSend.proofPercent !== null}
+              percent={fastSend.proofPercent ?? 0}
+              label={fastSend.progress ?? phaseLabel(fastSend.status)}
+              indeterminate={
+                fastSend.status === "deposit-submit" ||
+                fastSend.status === "withdraw-submit"
+              }
+            />
+
+            {fastSend.status === "success" && (
+              <div className="flex flex-col gap-1 text-[12px] text-primary">
+                <span>Recipient received funds privately.</span>
+                {fastSend.depositSignature && (
+                  <a
+                    href={explorerTxUrl(fastSend.depositSignature)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-mono text-[11.5px] underline underline-offset-2"
+                  >
+                    Shield tx ↗
+                  </a>
+                )}
+                {fastSend.withdrawSignature && (
+                  <a
+                    href={explorerTxUrl(fastSend.withdrawSignature)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-mono text-[11.5px] underline underline-offset-2"
+                  >
+                    Payout tx ↗
+                  </a>
+                )}
+              </div>
             )}
 
-            {shieldDeposit.status === "success" && shieldDeposit.signature && (
-              <p className="text-[12px] text-primary">
-                Shielded.{" "}
-                <a
-                  href={explorerTxUrl(shieldDeposit.signature)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline underline-offset-2"
-                >
-                  View transaction
-                </a>
-              </p>
-            )}
-
-            {shieldDeposit.status === "error" && shieldDeposit.error && (
+            {fastSend.status === "error" && fastSend.error && (
               <p className="text-[12px] text-destructive">
-                {shieldDeposit.error.message}
+                {fastSend.error.message}
               </p>
             )}
           </div>
@@ -411,7 +456,7 @@ function FieldFootnote({
   error,
 }: {
   id: string;
-  hint?: string;
+  hint?: React.ReactNode;
   error: string | null;
 }) {
   return (
@@ -489,27 +534,98 @@ function formatAmount(n: number) {
   });
 }
 
-function solToLamports(amountStr: string): bigint {
-  const [whole, frac = ""] = amountStr.trim().split(".");
-  const fracPadded = (frac + "000000000").slice(0, 9);
-  return BigInt(whole || "0") * 1_000_000_000n + BigInt(fracPadded || "0");
+function ProofProgress({
+  show,
+  percent,
+  label,
+  indeterminate,
+}: {
+  show: boolean;
+  percent: number;
+  label: string;
+  indeterminate: boolean;
+}) {
+  const display = Math.round(Math.max(0, Math.min(100, percent)));
+
+  return (
+    <AnimatePresence initial={false}>
+      {show && (
+        <motion.div
+          key="proof-progress"
+          initial={{ opacity: 0, y: -2 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -2 }}
+          transition={{ duration: 0.18, ease: "easeOut" }}
+          className="flex flex-col gap-1.5"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-center justify-between text-[11.5px] text-muted-foreground">
+            <span>{label}</span>
+            <span className="font-mono tabular-nums text-foreground/80">
+              {indeterminate ? "—" : `${display}%`}
+            </span>
+          </div>
+          <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-secondary/70">
+            {indeterminate ? (
+              <motion.span
+                aria-hidden="true"
+                className="absolute inset-y-0 w-1/3 rounded-full bg-primary"
+                initial={{ x: "-100%" }}
+                animate={{ x: "300%" }}
+                transition={{
+                  duration: 1.1,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              />
+            ) : (
+              <motion.span
+                aria-hidden="true"
+                className="absolute inset-y-0 left-0 rounded-full bg-primary"
+                animate={{ width: `${display}%` }}
+                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+              />
+            )}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 }
 
 function submitButtonLabel(
-  status: ReturnType<typeof useShieldDeposit>["status"],
+  status: ReturnType<typeof useFastSend>["status"],
   connected: boolean,
 ): string {
   if (!connected) return "Connect wallet to send";
   switch (status) {
-    case "deriving-key":
-      return "Approving shield key…";
-    case "building-proof":
-      return "Generating proof…";
-    case "submitting":
-      return "Submitting…";
+    case "deposit-proof":
+      return "Generating proof (1/2)…";
+    case "deposit-submit":
+      return "Shielding…";
+    case "withdraw-proof":
+      return "Generating proof (2/2)…";
+    case "withdraw-submit":
+      return "Paying recipient…";
     case "success":
       return "Send another";
     default:
       return "Send privately";
+  }
+}
+
+function phaseLabel(status: ReturnType<typeof useFastSend>["status"]): string {
+  switch (status) {
+    case "deposit-proof":
+      return "Generating deposit proof";
+    case "deposit-submit":
+      return "Shielding into pool";
+    case "withdraw-proof":
+      return "Generating withdraw proof";
+    case "withdraw-submit":
+      return "Paying recipient";
+    default:
+      return "Working";
   }
 }

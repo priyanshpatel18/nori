@@ -1,5 +1,7 @@
 "use client";
 
+import "@/lib/buffer-polyfill";
+
 import type { ReactNode } from "react";
 
 import { SolanaProvider } from "@/lib/solana/providers";
