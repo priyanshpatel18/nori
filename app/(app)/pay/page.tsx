@@ -20,14 +20,20 @@ import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  ProgressIndicator,
+  ProgressTrack,
+} from "@/components/ui/progress";
+import { Progress as ProgressPrimitive } from "@base-ui/react/progress";
+import {
   getShieldToken,
   isShieldTokenSupported,
   toBaseUnits,
   type ShieldTokenId,
 } from "@/lib/cloak/tokens";
+import { appendPayment } from "@/lib/cloak/payment-history";
 import { useFastSend } from "@/lib/cloak/use-fast-send";
 import { solanaConfig } from "@/lib/solana/config";
-import { explorerTxUrl } from "@/lib/solana/explorer";
+import { solscanTxUrl } from "@/lib/solana/explorer";
 import { cn } from "@/lib/utils";
 
 const TOKENS = [
@@ -115,6 +121,13 @@ export default function PayPage() {
   const wallet = useWallet();
   const fastSend = useFastSend();
 
+  const [lastSend, setLastSend] = React.useState<{
+    amount: number;
+    net: number;
+    token: TokenId;
+    recipient: string;
+  } | null>(null);
+
   const amountError = React.useMemo(
     () => validateAmount(amount, token),
     [amount, token],
@@ -145,7 +158,6 @@ export default function PayPage() {
 
   const numericAmount = amountValid ? Number(amount) : 0;
   const variableFee = numericAmount * 0.003;
-  const total = numericAmount + variableFee;
   const recipientReceives =
     numericAmount > 0
       ? Math.max(
@@ -172,6 +184,23 @@ export default function PayPage() {
       />
 
       <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 py-10 sm:px-8 lg:grid-cols-[1.4fr_1fr]">
+        {fastSend.status === "success" && lastSend ? (
+          <SuccessCard
+            net={lastSend.net}
+            token={lastSend.token}
+            recipient={lastSend.recipient}
+            depositSignature={fastSend.depositSignature}
+            withdrawSignature={fastSend.withdrawSignature}
+            onSendAnother={() => {
+              fastSend.reset();
+              setLastSend(null);
+              setAmount("");
+              setRecipient("");
+              setAmountTouched(false);
+              setRecipientTouched(false);
+            }}
+          />
+        ) : (
         <motion.form
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -184,12 +213,39 @@ export default function PayPage() {
             if (!amountValid || !addressValid) return;
             if (!shieldToken) return;
             if (!wallet.connected) return;
+            setLastSend({
+              amount: numericAmount,
+              net: recipientReceives,
+              token,
+              recipient: recipient.trim(),
+            });
             try {
-              await fastSend.send({
-                amountBaseUnits: toBaseUnits(amount, shieldToken.decimals),
+              const amountBaseUnits = toBaseUnits(
+                amount,
+                shieldToken.decimals,
+              );
+              const recipientPubkey = new PublicKey(recipient.trim());
+              const result = await fastSend.send({
+                amountBaseUnits,
                 mint: shieldToken.mint,
-                recipient: new PublicKey(recipient.trim()),
+                recipient: recipientPubkey,
               });
+              if (wallet.publicKey) {
+                appendPayment(wallet.publicKey.toBase58(), solanaConfig.cluster, {
+                  id: result.depositSignature,
+                  cluster: solanaConfig.cluster,
+                  sender: wallet.publicKey.toBase58(),
+                  recipient: recipientPubkey.toBase58(),
+                  token,
+                  mint: shieldToken.mint.toBase58(),
+                  decimals: shieldToken.decimals,
+                  amountRaw: amountBaseUnits.toString(),
+                  netRaw: netBaseUnits(amountBaseUnits, token === "SOL").toString(),
+                  depositSignature: result.depositSignature,
+                  withdrawSignature: result.withdrawSignature,
+                  timestamp: Date.now(),
+                });
+              }
             } catch {
               // surfaced via fastSend.error
             }
@@ -341,41 +397,11 @@ export default function PayPage() {
               </p>
             )}
 
-            <ProofProgress
-              show={submitting && fastSend.proofPercent !== null}
-              percent={fastSend.proofPercent ?? 0}
-              label={fastSend.progress ?? phaseLabel(fastSend.status)}
-              indeterminate={
-                fastSend.status === "deposit-submit" ||
-                fastSend.status === "withdraw-submit"
-              }
+            <TransactionProgress
+              show={submitting}
+              percent={fastSend.uiPercent}
+              message={fastSend.progress ?? phaseLabel(fastSend.status)}
             />
-
-            {fastSend.status === "success" && (
-              <div className="flex flex-col gap-1 text-[12px] text-primary">
-                <span>Recipient received funds privately.</span>
-                {fastSend.depositSignature && (
-                  <a
-                    href={explorerTxUrl(fastSend.depositSignature)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-mono text-[11.5px] underline underline-offset-2"
-                  >
-                    Shield tx ↗
-                  </a>
-                )}
-                {fastSend.withdrawSignature && (
-                  <a
-                    href={explorerTxUrl(fastSend.withdrawSignature)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-mono text-[11.5px] underline underline-offset-2"
-                  >
-                    Payout tx ↗
-                  </a>
-                )}
-              </div>
-            )}
 
             {fastSend.status === "error" && fastSend.error && (
               <p className="text-[12px] text-destructive">
@@ -384,6 +410,7 @@ export default function PayPage() {
             )}
           </div>
         </motion.form>
+        )}
 
         <motion.aside
           initial={{ opacity: 0, y: 8 }}
@@ -398,21 +425,27 @@ export default function PayPage() {
 
             <dl className="mt-4 flex flex-col divide-y divide-border text-[13.5px]">
               <Row
-                label="Amount"
+                label="You send"
                 value={`${formatAmount(numericAmount)} ${token}`}
               />
-              <Row label="Fixed fee" value="0.005 SOL" />
               <Row
                 label="Variable fee"
                 value={`${formatAmount(variableFee)} ${token}`}
                 hint="0.30%"
               />
+              <Row label="Network fee" value="0.005 SOL" />
               <Row
-                label="Total"
-                value={`${formatAmount(total)} ${token}`}
+                label="Recipient gets"
+                value={`${formatAmount(recipientReceives)} ${token}`}
                 emphasis
+                accent
               />
             </dl>
+            {token !== "SOL" && (
+              <p className="mt-3 text-[11.5px] text-muted-foreground">
+                Network fee is paid separately from your SOL balance.
+              </p>
+            )}
           </div>
 
           <ul className="flex flex-col gap-2 rounded-2xl border border-border bg-card/40 p-5">
@@ -493,16 +526,155 @@ function FieldFootnote({
   );
 }
 
+function SuccessCard({
+  net,
+  token,
+  recipient,
+  depositSignature,
+  withdrawSignature,
+  onSendAnother,
+}: {
+  net: number;
+  token: TokenId;
+  recipient: string;
+  depositSignature: string | null;
+  withdrawSignature: string | null;
+  onSendAnother: () => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
+      className="flex flex-col gap-6 rounded-2xl border border-border bg-card/60 p-6 sm:p-8"
+    >
+      <div className="flex items-start gap-3">
+        <motion.span
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{
+            duration: 0.32,
+            ease: [0.22, 1, 0.36, 1],
+            delay: 0.05,
+          }}
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"
+          aria-hidden="true"
+        >
+          <HugeiconsIcon
+            icon={CheckmarkCircle01Icon}
+            size={18}
+            strokeWidth={2.2}
+          />
+        </motion.span>
+        <div className="flex flex-col">
+          <h2 className="text-[18px] font-medium tracking-tight text-foreground">
+            Sent privately
+          </h2>
+          <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+            Recipient received{" "}
+            <span className="font-medium text-yellow-600 dark:text-yellow-400">
+              {formatAmount(net)} {token}
+            </span>
+            . The chain shows the payment from the Cloak shield-pool, not your
+            wallet.
+          </p>
+          <p className="mt-1 font-mono text-[11.5px] text-muted-foreground">
+            to {shortAddress(recipient)}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-background/40">
+        <SuccessTxRow
+          label="Shield tx"
+          hint="Your deposit into the pool"
+          signature={depositSignature}
+        />
+        <SuccessTxRow
+          label="Payout tx"
+          hint="What the recipient sees"
+          signature={withdrawSignature}
+        />
+      </div>
+
+      <FancyButton
+        type="button"
+        variant="primary"
+        size="lg"
+        className="self-start"
+        onClick={onSendAnother}
+      >
+        Send another
+        <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2.2} />
+      </FancyButton>
+    </motion.div>
+  );
+}
+
+function SuccessTxRow({
+  label,
+  hint,
+  signature,
+}: {
+  label: string;
+  hint: string;
+  signature: string | null;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-3">
+      <div className="flex flex-col">
+        <span className="text-[12.5px] font-medium text-foreground">
+          {label}
+        </span>
+        <span className="text-[11px] text-muted-foreground">{hint}</span>
+      </div>
+      {signature ? (
+        <a
+          href={solscanTxUrl(signature)}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-card/60 px-2.5 py-1 font-mono text-[11.5px] text-foreground transition-colors hover:bg-secondary"
+        >
+          <span>{shortSig(signature)}</span>
+          <span aria-hidden="true">↗</span>
+          <span className="sr-only">Open on Solscan</span>
+        </a>
+      ) : (
+        <span className="font-mono text-[11.5px] text-muted-foreground">—</span>
+      )}
+    </div>
+  );
+}
+
+function netBaseUnits(amount: bigint, tokenIsSol: boolean): bigint {
+  const variable = (amount * 3n) / 1000n;
+  const fixed = tokenIsSol ? 5_000_000n : 0n;
+  const net = amount - variable - fixed;
+  return net < 0n ? 0n : net;
+}
+
+function shortSig(sig: string): string {
+  if (sig.length <= 10) return sig;
+  return `${sig.slice(0, 4)}…${sig.slice(-4)}`;
+}
+
+function shortAddress(addr: string): string {
+  if (addr.length <= 12) return addr;
+  return `${addr.slice(0, 6)}…${addr.slice(-6)}`;
+}
+
 function Row({
   label,
   value,
   hint,
   emphasis,
+  accent,
 }: {
   label: string;
   value: string;
   hint?: string;
   emphasis?: boolean;
+  accent?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between py-2.5">
@@ -517,7 +689,11 @@ function Row({
       <dd
         className={cn(
           "font-mono",
-          emphasis ? "text-foreground" : "text-foreground/80",
+          accent
+            ? "font-medium text-yellow-600 dark:text-yellow-400"
+            : emphasis
+              ? "text-foreground"
+              : "text-foreground/80",
         )}
       >
         {value}
@@ -534,16 +710,14 @@ function formatAmount(n: number) {
   });
 }
 
-function ProofProgress({
+function TransactionProgress({
   show,
   percent,
-  label,
-  indeterminate,
+  message,
 }: {
   show: boolean;
   percent: number;
-  label: string;
-  indeterminate: boolean;
+  message: string;
 }) {
   const display = Math.round(Math.max(0, Math.min(100, percent)));
 
@@ -551,43 +725,26 @@ function ProofProgress({
     <AnimatePresence initial={false}>
       {show && (
         <motion.div
-          key="proof-progress"
+          key="tx-progress"
           initial={{ opacity: 0, y: -2 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -2 }}
-          transition={{ duration: 0.18, ease: "easeOut" }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
           className="flex flex-col gap-1.5"
           role="status"
           aria-live="polite"
         >
           <div className="flex items-center justify-between text-[11.5px] text-muted-foreground">
-            <span>{label}</span>
+            <span className="truncate pr-2">{message}</span>
             <span className="font-mono tabular-nums text-foreground/80">
-              {indeterminate ? "—" : `${display}%`}
+              {display}%
             </span>
           </div>
-          <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-secondary/70">
-            {indeterminate ? (
-              <motion.span
-                aria-hidden="true"
-                className="absolute inset-y-0 w-1/3 rounded-full bg-primary"
-                initial={{ x: "-100%" }}
-                animate={{ x: "300%" }}
-                transition={{
-                  duration: 1.1,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-              />
-            ) : (
-              <motion.span
-                aria-hidden="true"
-                className="absolute inset-y-0 left-0 rounded-full bg-primary"
-                animate={{ width: `${display}%` }}
-                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-              />
-            )}
-          </div>
+          <ProgressPrimitive.Root value={display}>
+            <ProgressTrack className="h-1.5 bg-secondary/70">
+              <ProgressIndicator />
+            </ProgressTrack>
+          </ProgressPrimitive.Root>
         </motion.div>
       )}
     </AnimatePresence>

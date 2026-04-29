@@ -32,7 +32,7 @@ export type FastSendStatus =
 export type FastSendState = {
   status: FastSendStatus;
   progress: string | null;
-  proofPercent: number | null;
+  uiPercent: number;
   depositSignature: string | null;
   withdrawSignature: string | null;
   error: Error | null;
@@ -41,7 +41,7 @@ export type FastSendState = {
 const initialState: FastSendState = {
   status: "idle",
   progress: null,
-  proofPercent: null,
+  uiPercent: 0,
   depositSignature: null,
   withdrawSignature: null,
   error: null,
@@ -49,6 +49,22 @@ const initialState: FastSendState = {
 
 const WITHDRAW_MAX_ATTEMPTS = 3;
 const WITHDRAW_RETRY_DELAY_MS = 1500;
+
+// Phase windows for the global progress bar.
+//   [enter, ceiling] — proof-progress fills toward ceiling, submit-events bump
+//   the floor to ceiling, then we move into the next window.
+const PHASE_WINDOW: Record<
+  Exclude<FastSendStatus, "idle" | "error">,
+  { enter: number; ceiling: number }
+> = {
+  "deposit-proof": { enter: 5, ceiling: 35 },
+  "deposit-submit": { enter: 35, ceiling: 50 },
+  "withdraw-proof": { enter: 50, ceiling: 85 },
+  "withdraw-submit": { enter: 85, ceiling: 95 },
+  success: { enter: 100, ceiling: 100 },
+};
+
+const SUBMIT_TICK = 3; // each onProgress event nudges the bar this many %.
 
 export function useFastSend() {
   const { connection } = useConnection();
@@ -84,7 +100,7 @@ export function useFastSend() {
         setState({
           status: "deposit-proof",
           progress: "Generating deposit proof",
-          proofPercent: 0,
+          uiPercent: PHASE_WINDOW["deposit-proof"].enter,
           depositSignature: null,
           withdrawSignature: null,
           error: null,
@@ -109,29 +125,12 @@ export function useFastSend() {
             signTransaction: wallet.signTransaction,
             signMessage: wallet.signMessage,
             onProgress: (status) =>
-              setState((s) => {
-                if (s.status === "error" || s.status === "success") return s;
-                const next: FastSendState = { ...s, progress: status };
-                if (
-                  s.status === "deposit-proof" &&
-                  isSubmittingStatus(status)
-                ) {
-                  next.status = "deposit-submit";
-                  next.proofPercent = 100;
-                }
-                return next;
-              }),
+              setState((s) => onProgressTick(s, status, "deposit")),
             onProofProgress: (percent) =>
               setState((s) =>
                 s.status !== "deposit-proof"
                   ? s
-                  : {
-                      ...s,
-                      proofPercent: Math.max(
-                        s.proofPercent ?? 0,
-                        clampPercent(percent),
-                      ),
-                    },
+                  : applyProofPercent(s, percent),
               ),
           },
         );
@@ -151,7 +150,10 @@ export function useFastSend() {
               attempt === 1
                 ? "Generating withdraw proof"
                 : `Generating withdraw proof (retry ${attempt}/${WITHDRAW_MAX_ATTEMPTS})`,
-            proofPercent: 0,
+            uiPercent: Math.max(
+              s.uiPercent,
+              PHASE_WINDOW["withdraw-proof"].enter,
+            ),
           }));
 
           try {
@@ -167,29 +169,12 @@ export function useFastSend() {
                 signMessage: wallet.signMessage,
                 cachedMerkleTree: depositResult.merkleTree,
                 onProgress: (status) =>
-                  setState((s) => {
-                    if (s.status === "error" || s.status === "success") return s;
-                    const next: FastSendState = { ...s, progress: status };
-                    if (
-                      s.status === "withdraw-proof" &&
-                      isSubmittingStatus(status)
-                    ) {
-                      next.status = "withdraw-submit";
-                      next.proofPercent = 100;
-                    }
-                    return next;
-                  }),
+                  setState((s) => onProgressTick(s, status, "withdraw")),
                 onProofProgress: (percent) =>
                   setState((s) =>
                     s.status !== "withdraw-proof"
                       ? s
-                      : {
-                          ...s,
-                          proofPercent: Math.max(
-                            s.proofPercent ?? 0,
-                            clampPercent(percent),
-                          ),
-                        },
+                      : applyProofPercent(s, percent),
                   ),
               },
             );
@@ -212,7 +197,7 @@ export function useFastSend() {
         setState({
           status: "success",
           progress: null,
-          proofPercent: 100,
+          uiPercent: 100,
           depositSignature: depositResult.signature,
           withdrawSignature: withdrawResult.signature,
           error: null,
@@ -235,7 +220,7 @@ export function useFastSend() {
         setState((s) => ({
           status: "error",
           progress: null,
-          proofPercent: null,
+          uiPercent: 0,
           depositSignature: s.depositSignature,
           withdrawSignature: null,
           error,
@@ -247,6 +232,52 @@ export function useFastSend() {
   );
 
   return { ...state, send, reset };
+}
+
+function onProgressTick(
+  s: FastSendState,
+  message: string,
+  leg: "deposit" | "withdraw",
+): FastSendState {
+  if (s.status === "error" || s.status === "success") return s;
+
+  const transitionedToSubmit =
+    (s.status === "deposit-proof" || s.status === "withdraw-proof") &&
+    isSubmittingStatus(message);
+
+  let nextStatus = s.status;
+  let nextPercent = s.uiPercent + SUBMIT_TICK;
+
+  if (transitionedToSubmit) {
+    nextStatus = leg === "deposit" ? "deposit-submit" : "withdraw-submit";
+    nextPercent = Math.max(nextPercent, PHASE_WINDOW[nextStatus].enter);
+  }
+
+  // Cap at the active phase ceiling so we don't overshoot before the next
+  // explicit transition.
+  const window = PHASE_WINDOW[nextStatus as keyof typeof PHASE_WINDOW];
+  if (window) {
+    nextPercent = Math.min(nextPercent, window.ceiling);
+  }
+
+  return {
+    ...s,
+    status: nextStatus,
+    progress: message,
+    uiPercent: Math.max(s.uiPercent, nextPercent),
+  };
+}
+
+function applyProofPercent(s: FastSendState, percent: number): FastSendState {
+  const window =
+    PHASE_WINDOW[s.status as keyof typeof PHASE_WINDOW] ?? null;
+  if (!window) return s;
+  const clamped = clampPercent(percent);
+  const target = window.enter + ((window.ceiling - window.enter) * clamped) / 100;
+  return {
+    ...s,
+    uiPercent: Math.max(s.uiPercent, target),
+  };
 }
 
 function clampPercent(p: number): number {
