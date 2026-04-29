@@ -6,11 +6,12 @@ import {
   Upload01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import Link from "next/link";
 
 import { Hero } from "@/components/sections/hero";
 import { IntegrationsBento } from "@/components/sections/integrations-bento";
 import { SiteFooter } from "@/components/sections/site-footer";
-import { FancyButton } from "@/components/ui/fancy-button";
+import { fancyButtonVariants } from "@/components/ui/fancy-button";
 import { Spotlight } from "@/components/ui/spotlight";
 
 export default function Home() {
@@ -148,18 +149,21 @@ function FinalCta() {
               Run your next payroll without putting your team on a public ledger.
             </h2>
             <p className="mt-4 max-w-md text-[14.5px] leading-7 text-muted-foreground">
-              Mainnet beta is open by invite. Tell us about your company and we&apos;ll get back to you the same day.
+              Nori is live on Solana mainnet. Connect your treasury wallet, upload your roster, and run private payroll in a click.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:items-end">
-            <FancyButton variant="primary" size="xl" type="button">
-              Request access
+            <Link
+              href="/payroll"
+              className={fancyButtonVariants({ variant: "primary", size: "xl" })}
+            >
+              Launch app
               <HugeiconsIcon
                 icon={ArrowRight01Icon}
                 size={16}
                 strokeWidth={2.2}
               />
-            </FancyButton>
+            </Link>
             <span className="font-mono text-[11.5px] text-muted-foreground">
               api.cloak.ag · audited Q1 2026
             </span>

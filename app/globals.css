@@ -112,6 +112,7 @@
     @apply font-sans;
     color-scheme: dark;
     background: var(--background);
+    scrollbar-gutter: stable;
   }
 
   body {

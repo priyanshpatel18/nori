@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  ArrowRight01Icon,
-  Mail01Icon,
-} from "@hugeicons/core-free-icons";
+import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import * as React from "react";
@@ -19,9 +16,7 @@ import {
   UsdtLogo,
 } from "@/components/logos";
 import { ConnectButton } from "@/components/solana/connect-button";
-import { FancyButton } from "@/components/ui/fancy-button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { fancyButtonVariants } from "@/components/ui/fancy-button";
 
 function TopBar() {
   return (
@@ -148,40 +143,22 @@ export function Hero() {
           Pay contributors in SOL, USDC, and USDT through a ZK shielded pool. Upload a CSV, run payroll in one click, and export a compliance report when your auditor asks.
         </p>
 
-        <form
-          action="#"
-          method="post"
-          className="mt-10 flex w-full max-w-xl flex-col gap-3"
-          aria-label="Request early access"
-        >
-          <Label htmlFor="hero-email" hint="Mainnet beta, by invite">
-            Work email
-          </Label>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              id="hero-email"
-              name="email"
-              type="email"
-              placeholder="you@company.xyz"
-              autoComplete="email"
-              className="sm:flex-1"
-              leadingIcon={
-                <HugeiconsIcon icon={Mail01Icon} size={16} strokeWidth={1.8} />
-              }
+        <div className="mt-10 flex w-full max-w-xl flex-col items-start gap-4">
+          <Link
+            href="/payroll"
+            className={fancyButtonVariants({ variant: "primary", size: "lg" })}
+          >
+            Launch app
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              size={14}
+              strokeWidth={2.2}
             />
-            <FancyButton type="submit" variant="primary" size="lg">
-              Request access
-              <HugeiconsIcon
-                icon={ArrowRight01Icon}
-                size={14}
-                strokeWidth={2.2}
-              />
-            </FancyButton>
-          </div>
+          </Link>
           <p className="font-mono text-[11.5px] text-muted-foreground">
             zh1eLd6r…6qRkW · mainnet · audited
           </p>
-        </form>
+        </div>
 
         <div className="mt-16 flex w-full flex-col gap-4">
           <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
