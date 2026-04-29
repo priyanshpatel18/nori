@@ -9,6 +9,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { isAddress } from "@solana/kit";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { AnimatePresence, motion } from "motion/react";
 import * as React from "react";
 
@@ -17,6 +18,8 @@ import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useShieldDeposit } from "@/lib/cloak/use-shield-deposit";
+import { explorerTxUrl } from "@/lib/solana/explorer";
 import { cn } from "@/lib/utils";
 
 const TOKENS = [
@@ -101,6 +104,9 @@ export default function PayPage() {
   const [amountTouched, setAmountTouched] = React.useState(false);
   const [recipientTouched, setRecipientTouched] = React.useState(false);
 
+  const wallet = useWallet();
+  const shieldDeposit = useShieldDeposit();
+
   const amountError = React.useMemo(
     () => validateAmount(amount, token),
     [amount, token],
@@ -115,7 +121,17 @@ export default function PayPage() {
 
   const amountValid = !amountError && amount.trim() !== "";
   const addressValid = !addressError && recipient.trim() !== "";
-  const canSubmit = amountValid && addressValid;
+  const tokenSupported = token === "SOL";
+  const submitting =
+    shieldDeposit.status === "deriving-key" ||
+    shieldDeposit.status === "building-proof" ||
+    shieldDeposit.status === "submitting";
+  const canSubmit =
+    amountValid &&
+    addressValid &&
+    tokenSupported &&
+    wallet.connected &&
+    !submitting;
 
   const numericAmount = amountValid ? Number(amount) : 0;
   const variableFee = numericAmount * 0.003;
@@ -135,10 +151,20 @@ export default function PayPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
           className="flex flex-col gap-6 rounded-2xl border border-border bg-card/60 p-6 sm:p-8"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             setAmountTouched(true);
             setRecipientTouched(true);
+            if (!amountValid || !addressValid) return;
+            if (!tokenSupported) return;
+            if (!wallet.connected) return;
+            try {
+              await shieldDeposit.deposit({
+                amountLamports: solToLamports(amount),
+              });
+            } catch {
+              // surfaced via shieldDeposit.error
+            }
           }}
           noValidate
         >
@@ -264,20 +290,54 @@ export default function PayPage() {
             <Input id="memo" placeholder="e.g. invoice #2026-04" />
           </div>
 
-          <FancyButton
-            type="submit"
-            variant="primary"
-            size="lg"
-            className="self-start"
-            disabled={!canSubmit}
-          >
-            Send privately
-            <HugeiconsIcon
-              icon={ArrowRight01Icon}
-              size={14}
-              strokeWidth={2.2}
-            />
-          </FancyButton>
+          <div className="flex flex-col gap-3">
+            <FancyButton
+              type="submit"
+              variant="primary"
+              size="lg"
+              className="self-start"
+              disabled={!canSubmit}
+            >
+              {submitButtonLabel(shieldDeposit.status, wallet.connected)}
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                size={14}
+                strokeWidth={2.2}
+              />
+            </FancyButton>
+
+            {!tokenSupported && (
+              <p className="text-[12px] text-muted-foreground">
+                {token} deposits are not yet wired. Switch to SOL to shield.
+              </p>
+            )}
+
+            {submitting && shieldDeposit.progress && (
+              <p className="text-[12px] text-muted-foreground">
+                {shieldDeposit.progress}
+              </p>
+            )}
+
+            {shieldDeposit.status === "success" && shieldDeposit.signature && (
+              <p className="text-[12px] text-primary">
+                Shielded.{" "}
+                <a
+                  href={explorerTxUrl(shieldDeposit.signature)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-2"
+                >
+                  View transaction
+                </a>
+              </p>
+            )}
+
+            {shieldDeposit.status === "error" && shieldDeposit.error && (
+              <p className="text-[12px] text-destructive">
+                {shieldDeposit.error.message}
+              </p>
+            )}
+          </div>
         </motion.form>
 
         <motion.aside
@@ -427,4 +487,29 @@ function formatAmount(n: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 6,
   });
+}
+
+function solToLamports(amountStr: string): bigint {
+  const [whole, frac = ""] = amountStr.trim().split(".");
+  const fracPadded = (frac + "000000000").slice(0, 9);
+  return BigInt(whole || "0") * 1_000_000_000n + BigInt(fracPadded || "0");
+}
+
+function submitButtonLabel(
+  status: ReturnType<typeof useShieldDeposit>["status"],
+  connected: boolean,
+): string {
+  if (!connected) return "Connect wallet to send";
+  switch (status) {
+    case "deriving-key":
+      return "Approving shield key…";
+    case "building-proof":
+      return "Generating proof…";
+    case "submitting":
+      return "Submitting…";
+    case "success":
+      return "Send another";
+    default:
+      return "Send privately";
+  }
 }
