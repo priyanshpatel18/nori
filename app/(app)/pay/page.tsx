@@ -1,13 +1,15 @@
 "use client";
 
 import {
+  Alert02Icon,
   ArrowRight01Icon,
   CheckmarkCircle01Icon,
   Coins01Icon,
   LockIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { motion } from "motion/react";
+import { isAddress } from "@solana/kit";
+import { AnimatePresence, motion } from "motion/react";
 import * as React from "react";
 
 import { PageHeader } from "@/components/app-shell/page-header";
@@ -18,21 +20,106 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 const TOKENS = [
-  { id: "SOL", label: "SOL", Logo: SolanaLogo },
-  { id: "USDC", label: "USDC", Logo: UsdcLogo },
-  { id: "USDT", label: "USDT", Logo: UsdtLogo },
+  { id: "SOL", label: "SOL", Logo: SolanaLogo, decimals: 9, min: 0.01 },
+  { id: "USDC", label: "USDC", Logo: UsdcLogo, decimals: 6, min: 0 },
+  { id: "USDT", label: "USDT", Logo: UsdtLogo, decimals: 6, min: 0 },
 ] as const;
 
 type TokenId = (typeof TOKENS)[number]["id"];
 
+type AmountError =
+  | { kind: "format" }
+  | { kind: "non-positive" }
+  | { kind: "decimals"; max: number }
+  | { kind: "below-min"; min: number; token: TokenId };
+
+type AddressError = { kind: "format" } | { kind: "length" };
+
+function validateAmount(raw: string, token: TokenId): AmountError | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  if (!/^\d*\.?\d*$/.test(trimmed) || trimmed === ".") {
+    return { kind: "format" };
+  }
+
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n <= 0) return { kind: "non-positive" };
+
+  const dot = trimmed.indexOf(".");
+  const decimals = dot === -1 ? 0 : trimmed.length - dot - 1;
+  const tokenMeta = TOKENS.find((t) => t.id === token)!;
+  if (decimals > tokenMeta.decimals) {
+    return { kind: "decimals", max: tokenMeta.decimals };
+  }
+
+  if (tokenMeta.min > 0 && n < tokenMeta.min) {
+    return { kind: "below-min", min: tokenMeta.min, token };
+  }
+
+  return null;
+}
+
+function validateAddress(raw: string): AddressError | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.length < 32 || trimmed.length > 44) {
+    return { kind: "length" };
+  }
+
+  if (!isAddress(trimmed)) return { kind: "format" };
+  return null;
+}
+
+function amountErrorMessage(err: AmountError) {
+  switch (err.kind) {
+    case "format":
+      return "Numbers only. Use a single decimal point.";
+    case "non-positive":
+      return "Amount must be greater than zero.";
+    case "decimals":
+      return `Up to ${err.max} decimal places for this token.`;
+    case "below-min":
+      return `Minimum is ${err.min} ${err.token}.`;
+  }
+}
+
+function addressErrorMessage(err: AddressError) {
+  switch (err.kind) {
+    case "length":
+      return "A Solana address is 32 to 44 characters.";
+    case "format":
+      return "Not a valid Solana address.";
+  }
+}
+
 export default function PayPage() {
   const [token, setToken] = React.useState<TokenId>("USDC");
   const [amount, setAmount] = React.useState("");
+  const [recipient, setRecipient] = React.useState("");
+  const [amountTouched, setAmountTouched] = React.useState(false);
+  const [recipientTouched, setRecipientTouched] = React.useState(false);
 
-  const parsed = Number(amount.replace(/,/g, ""));
-  const validAmount = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-  const variableFee = validAmount * 0.003;
-  const total = validAmount + variableFee;
+  const amountError = React.useMemo(
+    () => validateAmount(amount, token),
+    [amount, token],
+  );
+  const addressError = React.useMemo(
+    () => validateAddress(recipient),
+    [recipient],
+  );
+
+  const showAmountError = amountTouched && !!amountError;
+  const showAddressError = recipientTouched && !!addressError;
+
+  const amountValid = !amountError && amount.trim() !== "";
+  const addressValid = !addressError && recipient.trim() !== "";
+  const canSubmit = amountValid && addressValid;
+
+  const numericAmount = amountValid ? Number(amount) : 0;
+  const variableFee = numericAmount * 0.003;
+  const total = numericAmount + variableFee;
 
   return (
     <>
@@ -48,7 +135,12 @@ export default function PayPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
           className="flex flex-col gap-6 rounded-2xl border border-border bg-card/60 p-6 sm:p-8"
-          onSubmit={(e) => e.preventDefault()}
+          onSubmit={(e) => {
+            e.preventDefault();
+            setAmountTouched(true);
+            setRecipientTouched(true);
+          }}
+          noValidate
         >
           <div className="flex flex-col gap-2">
             <Label htmlFor="recipient">Recipient address</Label>
@@ -57,11 +149,38 @@ export default function PayPage() {
               placeholder="Solana wallet address"
               autoComplete="off"
               spellCheck={false}
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+              onBlur={() => setRecipientTouched(true)}
+              invalid={showAddressError}
+              aria-invalid={showAddressError || undefined}
+              aria-describedby={
+                showAddressError ? "recipient-error" : "recipient-hint"
+              }
               className="font-mono text-[13px]"
+              trailingIcon={
+                addressValid ? (
+                  <HugeiconsIcon
+                    icon={CheckmarkCircle01Icon}
+                    size={14}
+                    strokeWidth={2}
+                    className="text-primary"
+                  />
+                ) : showAddressError ? (
+                  <HugeiconsIcon
+                    icon={Alert02Icon}
+                    size={14}
+                    strokeWidth={2}
+                    className="text-destructive"
+                  />
+                ) : undefined
+              }
             />
-            <p className="text-[11.5px] text-muted-foreground">
-              Address is hashed into the proof. It is never written on-chain.
-            </p>
+            <FieldFootnote
+              id="recipient"
+              hint="Address is hashed into the proof. It is never written on-chain."
+              error={showAddressError ? addressErrorMessage(addressError!) : null}
+            />
           </div>
 
           <div className="flex flex-col gap-2">
@@ -73,7 +192,28 @@ export default function PayPage() {
                 placeholder="0.00"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
+                onBlur={() => setAmountTouched(true)}
+                invalid={showAmountError}
+                aria-invalid={showAmountError || undefined}
+                aria-describedby={showAmountError ? "amount-error" : undefined}
                 className="font-mono sm:flex-1"
+                trailingIcon={
+                  amountValid ? (
+                    <HugeiconsIcon
+                      icon={CheckmarkCircle01Icon}
+                      size={14}
+                      strokeWidth={2}
+                      className="text-primary"
+                    />
+                  ) : showAmountError ? (
+                    <HugeiconsIcon
+                      icon={Alert02Icon}
+                      size={14}
+                      strokeWidth={2}
+                      className="text-destructive"
+                    />
+                  ) : undefined
+                }
               />
               <div className="flex items-center gap-1.5 rounded-xl border border-border bg-background/50 p-1">
                 {TOKENS.map((t) => {
@@ -111,6 +251,10 @@ export default function PayPage() {
                 })}
               </div>
             </div>
+            <FieldFootnote
+              id="amount"
+              error={showAmountError ? amountErrorMessage(amountError!) : null}
+            />
           </div>
 
           <div className="flex flex-col gap-2">
@@ -125,6 +269,7 @@ export default function PayPage() {
             variant="primary"
             size="lg"
             className="self-start"
+            disabled={!canSubmit}
           >
             Send privately
             <HugeiconsIcon
@@ -147,7 +292,10 @@ export default function PayPage() {
             </p>
 
             <dl className="mt-4 flex flex-col divide-y divide-border text-[13.5px]">
-              <Row label="Amount" value={`${formatAmount(validAmount)} ${token}`} />
+              <Row
+                label="Amount"
+                value={`${formatAmount(numericAmount)} ${token}`}
+              />
               <Row label="Fixed fee" value="0.005 SOL" />
               <Row
                 label="Variable fee"
@@ -194,6 +342,49 @@ export default function PayPage() {
         </motion.aside>
       </div>
     </>
+  );
+}
+
+function FieldFootnote({
+  id,
+  hint,
+  error,
+}: {
+  id: string;
+  hint?: string;
+  error: string | null;
+}) {
+  return (
+    <div className="relative min-h-[16px]">
+      <AnimatePresence mode="wait" initial={false}>
+        {error ? (
+          <motion.p
+            key="error"
+            id={`${id}-error`}
+            role="alert"
+            initial={{ opacity: 0, y: -2 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -2 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+            className="text-[11.5px] text-destructive"
+          >
+            {error}
+          </motion.p>
+        ) : hint ? (
+          <motion.p
+            key="hint"
+            id={`${id}-hint`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+            className="text-[11.5px] text-muted-foreground"
+          >
+            {hint}
+          </motion.p>
+        ) : null}
+      </AnimatePresence>
+    </div>
   );
 }
 
