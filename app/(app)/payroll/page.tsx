@@ -13,10 +13,13 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { AnimatePresence, motion } from "motion/react";
 import * as React from "react";
 
+import { useWallet } from "@solana/wallet-adapter-react";
+
 import { PageHeader } from "@/components/app-shell/page-header";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
 import { FancyButton } from "@/components/ui/fancy-button";
 import {
+  appendPayment,
   formatBaseUnits,
 } from "@/lib/cloak/payment-history";
 import {
@@ -24,6 +27,11 @@ import {
   isShieldTokenSupported,
   type ShieldTokenId,
 } from "@/lib/cloak/tokens";
+import {
+  useBatchPayroll,
+  type BatchRowState,
+  type BatchRowStatus,
+} from "@/lib/cloak/use-batch-payroll";
 import {
   parsePayrollCsv,
   type PayrollParseResult,
@@ -330,6 +338,8 @@ function ParsedSummary({
   const [tokenId, setTokenId] = React.useState<ShieldTokenId>("USDC");
   const shieldToken = React.useMemo(() => getShieldToken(tokenId), [tokenId]);
   const tokenSupported = isShieldTokenSupported(tokenId);
+  const wallet = useWallet();
+  const batch = useBatchPayroll();
 
   const validated: ValidatedRow[] = React.useMemo(() => {
     if (state.kind !== "ready" || !shieldToken) return [];
@@ -339,6 +349,61 @@ function ParsedSummary({
   const totals = React.useMemo(() => totalsFor(validated), [validated]);
 
   const tokenDecimals = shieldToken?.decimals ?? 0;
+
+  const canRun =
+    batch.status === "idle" &&
+    tokenSupported &&
+    wallet.connected &&
+    totals.validCount > 0;
+
+  const runLabel =
+    batch.status === "running"
+      ? `Running (${runProgress(batch.rows)})`
+      : batch.status === "done"
+        ? "Run complete"
+        : !wallet.connected
+          ? "Connect wallet to run"
+          : totals.validCount === 0
+            ? "No valid rows"
+            : `Run payroll (${totals.validCount})`;
+
+  const onRun = React.useCallback(async () => {
+    if (!shieldToken || !wallet.publicKey) return;
+    const validRows = validated.filter((r) => r.isValid);
+    const validById = new Map(validRows.map((r) => [r.row.rowNumber, r]));
+
+    const outcome = await batch.run({
+      rows: validRows.map((r) => ({
+        id: r.row.rowNumber,
+        recipient: r.wallet,
+        amountBaseUnits: r.amountBaseUnits!,
+      })),
+      mint: shieldToken.mint,
+    });
+
+    if (!outcome || !wallet.publicKey) return;
+
+    const sender = wallet.publicKey.toBase58();
+    for (const result of outcome.results) {
+      if (!result.ok) continue;
+      const r = validById.get(result.id);
+      if (!r) continue;
+      appendPayment(sender, solanaConfig.cluster, {
+        id: result.depositSig,
+        cluster: solanaConfig.cluster,
+        sender,
+        recipient: r.wallet,
+        token: tokenId,
+        mint: shieldToken.mint.toBase58(),
+        decimals: shieldToken.decimals,
+        amountRaw: r.amountBaseUnits!.toString(),
+        netRaw: r.netBaseUnits!.toString(),
+        depositSignature: result.depositSig,
+        withdrawSignature: result.withdrawSig,
+        timestamp: Date.now(),
+      });
+    }
+  }, [batch, shieldToken, tokenId, validated, wallet.publicKey]);
 
   return (
     <motion.section
@@ -469,7 +534,13 @@ function ParsedSummary({
       )}
 
       {state.kind === "ready" && validated.length > 0 && shieldToken && (
-        <PreviewTable rows={validated} tokenId={tokenId} decimals={tokenDecimals} />
+        <PreviewTable
+          rows={validated}
+          tokenId={tokenId}
+          decimals={tokenDecimals}
+          execRows={batch.rows}
+          activeRowId={batch.activeRowId}
+        />
       )}
 
       {state.kind === "ready" && validated.length > 0 && (
@@ -479,18 +550,62 @@ function ParsedSummary({
           tokenDecimals={tokenDecimals}
         />
       )}
+
+      {state.kind === "ready" && validated.length > 0 && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <FancyButton
+            type="button"
+            variant="primary"
+            size="lg"
+            disabled={!canRun}
+            onClick={onRun}
+          >
+            {runLabel}
+            <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2.2} />
+          </FancyButton>
+
+          {batch.status === "done" && batch.summary && (
+            <p className="text-[12.5px] text-muted-foreground">
+              {batch.summary.confirmed} confirmed
+              {batch.summary.failed > 0 && (
+                <span className="text-destructive">
+                  {" · "}
+                  {batch.summary.failed} failed
+                </span>
+              )}
+              {" · "}
+              {((batch.summary.finishedAt - batch.summary.startedAt) / 1000).toFixed(1)}s
+            </p>
+          )}
+        </div>
+      )}
     </motion.section>
   );
+}
+
+function runProgress(rows: Record<number, BatchRowState>): string {
+  const ids = Object.keys(rows);
+  const total = ids.length;
+  if (total === 0) return "";
+  const done = ids.filter((id) => {
+    const s = rows[Number(id)]?.status;
+    return s === "confirmed" || s === "failed";
+  }).length;
+  return `${done}/${total}`;
 }
 
 function PreviewTable({
   rows,
   tokenId,
   decimals,
+  execRows,
+  activeRowId,
 }: {
   rows: ValidatedRow[];
   tokenId: ShieldTokenId;
   decimals: number;
+  execRows: Record<number, BatchRowState>;
+  activeRowId: number | null;
 }) {
   return (
     <div className="overflow-hidden rounded-xl border border-border">
@@ -506,80 +621,171 @@ function PreviewTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-border font-mono">
-            {rows.map((r) => (
-              <tr
-                key={r.row.rowNumber}
-                className={cn(
-                  "transition-colors",
-                  !r.isValid && "bg-destructive/5",
-                )}
-              >
-                <td className="px-3 py-2 text-[11px] text-muted-foreground">
-                  {r.row.rowNumber}
-                </td>
-                <td
+            {rows.map((r) => {
+              const exec = execRows[r.row.rowNumber];
+              const isActive = activeRowId === r.row.rowNumber;
+              return (
+                <tr
+                  key={r.row.rowNumber}
                   className={cn(
-                    "px-3 py-2",
-                    r.walletIssue ? "text-destructive" : "text-foreground/90",
+                    "transition-colors",
+                    !r.isValid && "bg-destructive/5",
+                    isActive && "bg-primary/5",
+                    exec?.status === "confirmed" && "bg-primary/[0.04]",
+                    exec?.status === "failed" && "bg-destructive/10",
                   )}
                 >
-                  {r.wallet ? shortAddr(r.wallet) : "—"}
-                  {r.walletIssue && (
-                    <span className="ml-2 font-sans text-[10.5px] uppercase tracking-[0.1em]">
-                      {describeRowIssue(r.walletIssue)}
-                    </span>
-                  )}
-                </td>
-                <td
-                  className={cn(
-                    "px-3 py-2 text-right",
-                    r.amountIssue ? "text-destructive" : "text-foreground/90",
-                  )}
-                >
-                  {r.amount || "—"}{" "}
-                  <span className="text-muted-foreground">{tokenId}</span>
-                  {r.amountIssue && (
-                    <div className="mt-0.5 font-sans text-[10.5px] uppercase tracking-[0.1em]">
-                      {describeRowIssue(r.amountIssue)}
-                    </div>
-                  )}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  {r.isValid && r.netBaseUnits !== undefined ? (
-                    <span className="font-medium text-yellow-600 dark:text-yellow-400">
-                      {formatBaseUnits(r.netBaseUnits.toString(), decimals)}{" "}
-                      <span className="text-muted-foreground">{tokenId}</span>
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  {r.isValid ? (
-                    <span className="inline-flex size-5 items-center justify-center rounded-full bg-primary/15 text-primary">
-                      <HugeiconsIcon
-                        icon={CheckmarkCircle01Icon}
-                        size={10}
-                        strokeWidth={2.5}
-                      />
-                    </span>
-                  ) : (
-                    <span className="inline-flex size-5 items-center justify-center rounded-full bg-destructive/15 text-destructive">
-                      <HugeiconsIcon
-                        icon={Alert02Icon}
-                        size={10}
-                        strokeWidth={2.5}
-                      />
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
+                  <td className="px-3 py-2 text-[11px] text-muted-foreground">
+                    {r.row.rowNumber}
+                  </td>
+                  <td
+                    className={cn(
+                      "px-3 py-2",
+                      r.walletIssue ? "text-destructive" : "text-foreground/90",
+                    )}
+                  >
+                    {r.wallet ? shortAddr(r.wallet) : "—"}
+                    {r.walletIssue && (
+                      <span className="ml-2 font-sans text-[10.5px] uppercase tracking-[0.1em]">
+                        {describeRowIssue(r.walletIssue)}
+                      </span>
+                    )}
+                  </td>
+                  <td
+                    className={cn(
+                      "px-3 py-2 text-right",
+                      r.amountIssue ? "text-destructive" : "text-foreground/90",
+                    )}
+                  >
+                    {r.amount || "—"}{" "}
+                    <span className="text-muted-foreground">{tokenId}</span>
+                    {r.amountIssue && (
+                      <div className="mt-0.5 font-sans text-[10.5px] uppercase tracking-[0.1em]">
+                        {describeRowIssue(r.amountIssue)}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    {r.isValid && r.netBaseUnits !== undefined ? (
+                      <span className="font-medium text-yellow-600 dark:text-yellow-400">
+                        {formatBaseUnits(r.netBaseUnits.toString(), decimals)}{" "}
+                        <span className="text-muted-foreground">{tokenId}</span>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <RowStatus
+                      validRow={r.isValid}
+                      exec={exec}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
     </div>
   );
+}
+
+function RowStatus({
+  validRow,
+  exec,
+}: {
+  validRow: boolean;
+  exec?: BatchRowState;
+}) {
+  if (!validRow) {
+    return (
+      <span className="inline-flex size-5 items-center justify-center rounded-full bg-destructive/15 text-destructive">
+        <HugeiconsIcon icon={Alert02Icon} size={10} strokeWidth={2.5} />
+      </span>
+    );
+  }
+
+  if (!exec || exec.status === "pending") {
+    return (
+      <span
+        title="Pending"
+        className="inline-flex size-5 items-center justify-center rounded-full border border-border bg-background/40 text-muted-foreground"
+      >
+        <span className="size-1.5 rounded-full bg-muted-foreground/60" />
+      </span>
+    );
+  }
+
+  if (exec.status === "confirmed") {
+    return (
+      <span
+        title="Confirmed"
+        className="inline-flex size-5 items-center justify-center rounded-full bg-primary/20 text-primary"
+      >
+        <HugeiconsIcon icon={CheckmarkCircle01Icon} size={10} strokeWidth={2.5} />
+      </span>
+    );
+  }
+
+  if (exec.status === "failed") {
+    return (
+      <span
+        title={exec.errorMessage ?? "Failed"}
+        className="inline-flex size-5 items-center justify-center rounded-full bg-destructive/20 text-destructive"
+      >
+        <HugeiconsIcon icon={Alert02Icon} size={10} strokeWidth={2.5} />
+      </span>
+    );
+  }
+
+  // proving / submitting — show a small inline label with %
+  return (
+    <span
+      title={exec.progress ?? statusLabel(exec.status)}
+      className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+    >
+      <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+      {phaseShort(exec.status)}
+      {exec.proofPercent !== null && exec.status.startsWith("proving") && (
+        <span className="font-mono">{Math.round(exec.proofPercent)}%</span>
+      )}
+    </span>
+  );
+}
+
+function statusLabel(s: BatchRowStatus): string {
+  switch (s) {
+    case "proving-deposit":
+      return "Generating deposit proof";
+    case "submitting-deposit":
+      return "Submitting deposit";
+    case "proving-withdraw":
+      return "Generating withdraw proof";
+    case "submitting-withdraw":
+      return "Submitting payout";
+    case "confirmed":
+      return "Confirmed";
+    case "failed":
+      return "Failed";
+    default:
+      return "Pending";
+  }
+}
+
+function phaseShort(s: BatchRowStatus): string {
+  switch (s) {
+    case "proving-deposit":
+      return "Shield";
+    case "submitting-deposit":
+      return "Settle";
+    case "proving-withdraw":
+      return "Payout";
+    case "submitting-withdraw":
+      return "Confirm";
+    default:
+      return "";
+  }
 }
 
 function TotalsCard({
