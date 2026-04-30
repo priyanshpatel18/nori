@@ -102,7 +102,7 @@ export default function CompliancePage() {
             {[
               "Generated locally from your master key.",
               "Hand off via your preferred encrypted channel.",
-              "Revoke any time — every receipt becomes unreadable instantly.",
+              "Revoke any time. Every receipt becomes unreadable instantly.",
             ].map((t, i) => (
               <motion.p
                 key={t}

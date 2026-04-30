@@ -163,7 +163,7 @@ function HistoryRow({ tx, index }: { tx: PaymentRecord; index: number }) {
 
 function formatDate(ms: number): string {
   const d = new Date(ms);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "·";
   return d.toLocaleString(undefined, {
     month: "short",
     day: "numeric",

@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:pay": "tsx scripts/test/pay.ts",
+    "test:faucet": "tsx scripts/test/faucet.ts",
+    "test:payroll": "tsx scripts/test/payroll.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -43,6 +46,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
+    "tweetnacl": "^1.0.3",
     "typescript": "^5"
   }
 }

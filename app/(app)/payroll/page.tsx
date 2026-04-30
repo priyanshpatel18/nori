@@ -7,13 +7,13 @@ import {
   Coins01Icon,
   Delete02Icon,
   Upload01Icon,
-  UserMultipleIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AnimatePresence, motion } from "motion/react";
 import * as React from "react";
 
 import { useWallet } from "@solana/wallet-adapter-react";
+import Link from "next/link";
 
 import { PageHeader } from "@/components/app-shell/page-header";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
@@ -43,37 +43,8 @@ import {
   type ValidatedRow,
 } from "@/lib/payroll/validate";
 import { solanaConfig } from "@/lib/solana/config";
+import { solscanTxUrl } from "@/lib/solana/explorer";
 import { cn } from "@/lib/utils";
-
-const ROSTERS: {
-  name: string;
-  count: number;
-  cycle: string;
-  total: string;
-  status: "scheduled" | "draft";
-}[] = [
-  {
-    name: "Engineering · April",
-    count: 18,
-    cycle: "Monthly",
-    total: "184,500 USDC",
-    status: "scheduled",
-  },
-  {
-    name: "Contractors · Q2",
-    count: 7,
-    cycle: "One-off",
-    total: "42 SOL",
-    status: "draft",
-  },
-  {
-    name: "Design · April",
-    count: 5,
-    cycle: "Monthly",
-    total: "32,000 USDC",
-    status: "scheduled",
-  },
-];
 
 type ParseState =
   | { kind: "idle" }
@@ -123,18 +94,8 @@ export default function PayrollPage() {
     <>
       <PageHeader
         eyebrow="Run a roster"
-        title="Payroll, in one transaction."
-        description="Upload a CSV with wallet + amount columns. Save it once, rerun it every cycle."
-        actions={
-          <FancyButton variant="primary" size="md">
-            New roster
-            <HugeiconsIcon
-              icon={ArrowRight01Icon}
-              size={14}
-              strokeWidth={2.2}
-            />
-          </FancyButton>
-        }
+        title="Payroll, one transaction."
+        description="Upload a CSV. One signature covers the whole batch, every recipient paid privately from the shielded pool."
       />
 
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 sm:px-8">
@@ -232,87 +193,6 @@ export default function PayrollPage() {
           )}
         </AnimatePresence>
 
-        {parse.kind === "idle" && (
-          <div className="flex flex-col gap-3">
-            <div className="flex items-end justify-between">
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                  Saved rosters
-                </p>
-                <h2 className="mt-1 text-[18px] font-medium tracking-tight text-foreground">
-                  Reuse last month&apos;s payroll
-                </h2>
-              </div>
-            </div>
-
-            <ul className="flex flex-col gap-2">
-              {ROSTERS.map((r, i) => (
-                <motion.li
-                  key={r.name}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    delay: 0.12 + i * 0.05,
-                    duration: 0.3,
-                    ease: [0.22, 1, 0.36, 1],
-                  }}
-                >
-                  <button
-                    type="button"
-                    className="group flex w-full items-center justify-between gap-4 rounded-xl border border-border bg-card/40 px-4 py-3.5 text-left transition-colors hover:border-primary/30 hover:bg-card/70"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-background/60 text-muted-foreground group-hover:text-primary">
-                        <HugeiconsIcon
-                          icon={UserMultipleIcon}
-                          size={16}
-                          strokeWidth={1.8}
-                        />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-[14px] font-medium text-foreground">
-                          {r.name}
-                        </p>
-                        <p className="text-[12px] text-muted-foreground">
-                          {r.count} recipients · {r.cycle}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="hidden text-right sm:block">
-                        <p className="font-mono text-[13px] text-foreground">
-                          {r.total}
-                        </p>
-                        <p className="flex items-center justify-end gap-1 text-[11px] text-muted-foreground">
-                          {r.status === "scheduled" ? (
-                            <>
-                              <HugeiconsIcon
-                                icon={CheckmarkCircle01Icon}
-                                size={11}
-                                strokeWidth={2}
-                                className="text-primary"
-                              />
-                              Scheduled
-                            </>
-                          ) : (
-                            "Draft"
-                          )}
-                        </p>
-                      </div>
-                      <HugeiconsIcon
-                        icon={ArrowRight01Icon}
-                        size={14}
-                        strokeWidth={2}
-                        className="text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
-                      />
-                    </div>
-                  </button>
-                </motion.li>
-              ))}
-            </ul>
-          </div>
-        )}
       </div>
     </>
   );
@@ -358,7 +238,11 @@ function ParsedSummary({
 
   const runLabel =
     batch.status === "running"
-      ? `Running (${runProgress(batch.rows)})`
+      ? batch.phase === "depositing-proof"
+        ? `Shielding · ${Math.round(batch.depositPercent)}%`
+        : batch.phase === "depositing-submit"
+          ? "Submitting deposit"
+          : `Paying ${runProgress(batch.rows)}`
       : batch.status === "done"
         ? "Run complete"
         : !wallet.connected
@@ -379,6 +263,8 @@ function ParsedSummary({
         amountBaseUnits: r.amountBaseUnits!,
       })),
       mint: shieldToken.mint,
+      tokenId,
+      decimals: shieldToken.decimals,
     });
 
     if (!outcome || !wallet.publicKey) return;
@@ -388,8 +274,10 @@ function ParsedSummary({
       if (!result.ok) continue;
       const r = validById.get(result.id);
       if (!r) continue;
+      // The whole batch shares one deposit; each row has its own payout sig.
+      // Use payoutSig as the record id so /history shows N distinct rows.
       appendPayment(sender, solanaConfig.cluster, {
-        id: result.depositSig,
+        id: result.payoutSig,
         cluster: solanaConfig.cluster,
         sender,
         recipient: r.wallet,
@@ -398,8 +286,8 @@ function ParsedSummary({
         decimals: shieldToken.decimals,
         amountRaw: r.amountBaseUnits!.toString(),
         netRaw: r.netBaseUnits!.toString(),
-        depositSignature: result.depositSig,
-        withdrawSignature: result.withdrawSig,
+        depositSignature: outcome.depositSignature,
+        withdrawSignature: result.payoutSig,
         timestamp: Date.now(),
       });
     }
@@ -533,54 +421,271 @@ function ParsedSummary({
         </ul>
       )}
 
-      {state.kind === "ready" && validated.length > 0 && shieldToken && (
-        <PreviewTable
-          rows={validated}
-          tokenId={tokenId}
-          decimals={tokenDecimals}
-          execRows={batch.rows}
-          activeRowId={batch.activeRowId}
-        />
-      )}
+      {state.kind === "ready" &&
+        validated.length > 0 &&
+        shieldToken &&
+        batch.status !== "done" && (
+          <PreviewTable
+            rows={validated}
+            tokenId={tokenId}
+            decimals={tokenDecimals}
+            execRows={batch.rows}
+            activeRowId={batch.activeRowId}
+            activeStartedAt={batch.activeStartedAt}
+          />
+        )}
 
-      {state.kind === "ready" && validated.length > 0 && (
-        <TotalsCard
-          totals={totals}
-          tokenId={tokenId}
-          tokenDecimals={tokenDecimals}
-        />
-      )}
+      {state.kind === "ready" &&
+        validated.length > 0 &&
+        batch.status !== "done" && (
+          <TotalsCard
+            totals={totals}
+            tokenId={tokenId}
+            tokenDecimals={tokenDecimals}
+          />
+        )}
 
-      {state.kind === "ready" && validated.length > 0 && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <FancyButton
-            type="button"
-            variant="primary"
-            size="lg"
-            disabled={!canRun}
-            onClick={onRun}
-          >
-            {runLabel}
-            <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2.2} />
-          </FancyButton>
+      {state.kind === "ready" &&
+        validated.length > 0 &&
+        batch.status !== "done" && (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <FancyButton
+              type="button"
+              variant="primary"
+              size="lg"
+              disabled={!canRun}
+              onClick={onRun}
+            >
+              {runLabel}
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                size={14}
+                strokeWidth={2.2}
+              />
+            </FancyButton>
 
-          {batch.status === "done" && batch.summary && (
-            <p className="text-[12.5px] text-muted-foreground">
-              {batch.summary.confirmed} confirmed
-              {batch.summary.failed > 0 && (
-                <span className="text-destructive">
-                  {" · "}
-                  {batch.summary.failed} failed
+            {(batch.phase === "depositing-proof" ||
+              batch.phase === "depositing-submit") && (
+              <span className="inline-flex items-center gap-2 text-[12px] text-muted-foreground">
+                <span className="relative flex size-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/40" />
+                  <span className="relative inline-flex size-1.5 rounded-full bg-primary" />
                 </span>
-              )}
-              {" · "}
-              {((batch.summary.finishedAt - batch.summary.startedAt) / 1000).toFixed(1)}s
-            </p>
-          )}
-        </div>
+                <span className="truncate">
+                  {batch.depositProgress ?? "Shielding into pool"}
+                </span>
+              </span>
+            )}
+          </div>
+        )}
+
+      {state.kind === "ready" && batch.status === "done" && batch.summary && (
+        <Receipt
+          summary={batch.summary}
+          validated={validated}
+          execRows={batch.rows}
+          onRunAnother={() => {
+            batch.reset();
+            onReset();
+          }}
+        />
       )}
     </motion.section>
   );
+}
+
+function Receipt({
+  summary,
+  validated,
+  execRows,
+  onRunAnother,
+}: {
+  summary: {
+    total: number;
+    confirmed: number;
+    failed: number;
+    startedAt: number;
+    finishedAt: number;
+    depositSignature: string | null;
+  };
+  validated: ValidatedRow[];
+  execRows: Record<number, BatchRowState>;
+  onRunAnother: () => void;
+}) {
+  const durationSeconds = (summary.finishedAt - summary.startedAt) / 1000;
+  const validRows = validated.filter((r) => r.isValid);
+  const invalidSkipped = validated.length - validRows.length;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
+      className="flex flex-col gap-5 rounded-2xl border border-border bg-background/40 p-5 sm:p-6"
+    >
+      <div className="flex items-start gap-3">
+        <motion.span
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1], delay: 0.05 }}
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"
+          aria-hidden="true"
+        >
+          <HugeiconsIcon
+            icon={CheckmarkCircle01Icon}
+            size={18}
+            strokeWidth={2.2}
+          />
+        </motion.span>
+        <div className="flex flex-col">
+          <h3 className="text-[16px] font-medium tracking-tight text-foreground">
+            Roster complete
+          </h3>
+          <p className="mt-1 text-[12.5px] leading-5 text-muted-foreground">
+            <span className="font-medium text-foreground">
+              {summary.confirmed} of {summary.total}
+            </span>{" "}
+            confirmed
+            {summary.failed > 0 && (
+              <>
+                {" · "}
+                <span className="font-medium text-destructive">
+                  {summary.failed} failed
+                </span>
+              </>
+            )}
+            {" · "}
+            {durationSeconds.toFixed(1)}s
+            {invalidSkipped > 0 && ` · ${invalidSkipped} skipped`}
+          </p>
+          <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+            Total: <span className="text-foreground/70">[redacted]</span>
+          </p>
+          {summary.depositSignature && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Batch deposit:{" "}
+              <a
+                href={solscanTxUrl(summary.depositSignature)}
+                target="_blank"
+                rel="noreferrer"
+                className="font-mono text-foreground/80 underline underline-offset-2"
+              >
+                {shortSig(summary.depositSignature)} ↗
+              </a>
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-border">
+        <div className="max-h-[360px] overflow-auto">
+          <table className="w-full text-left text-[12.5px]">
+            <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur">
+              <tr className="border-b border-border text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                <th className="px-3 py-2 font-medium">#</th>
+                <th className="px-3 py-2 font-medium">Recipient</th>
+                <th className="px-3 py-2 font-medium">Outcome</th>
+                <th className="px-3 py-2 text-right font-medium">Tx</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border font-mono">
+              {validRows.map((r) => {
+                const exec = execRows[r.row.rowNumber];
+                const isConfirmed = exec?.status === "confirmed";
+                const isFailed = exec?.status === "failed";
+                return (
+                  <tr
+                    key={r.row.rowNumber}
+                    className={cn(
+                      isFailed && "bg-destructive/5",
+                    )}
+                  >
+                    <td className="px-3 py-2 text-[11px] text-muted-foreground">
+                      {r.row.rowNumber}
+                    </td>
+                    <td className="px-3 py-2 text-foreground/90">
+                      {shortAddr(r.wallet)}
+                    </td>
+                    <td className="px-3 py-2">
+                      {isConfirmed ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
+                          <HugeiconsIcon
+                            icon={CheckmarkCircle01Icon}
+                            size={10}
+                            strokeWidth={2.5}
+                          />
+                          Confirmed
+                        </span>
+                      ) : isFailed ? (
+                        <span
+                          title={exec?.errorMessage}
+                          className="inline-flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-medium text-destructive"
+                        >
+                          <HugeiconsIcon
+                            icon={Alert02Icon}
+                            size={10}
+                            strokeWidth={2.5}
+                          />
+                          {truncate(exec?.errorMessage ?? "Failed", 40)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">·</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {isConfirmed && exec?.payoutSignature ? (
+                        <a
+                          href={solscanTxUrl(exec.payoutSignature)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 rounded-lg border border-border bg-card/60 px-2 py-1 text-[11px] text-foreground transition-colors hover:bg-secondary"
+                          title="Open payout on Solscan"
+                        >
+                          <span>{shortSig(exec.payoutSignature)}</span>
+                          <span aria-hidden="true">↗</span>
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground">·</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <FancyButton
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={onRunAnother}
+        >
+          Run another roster
+          <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2.2} />
+        </FancyButton>
+        <Link
+          href="/history"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card/60 px-3 py-2 text-[12.5px] text-foreground transition-colors hover:bg-secondary"
+        >
+          View in history
+          <span aria-hidden="true">→</span>
+        </Link>
+      </div>
+    </motion.div>
+  );
+}
+
+function shortSig(sig: string): string {
+  if (sig.length <= 10) return sig;
+  return `${sig.slice(0, 4)}…${sig.slice(-4)}`;
+}
+
+function truncate(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return `${s.slice(0, max - 1)}…`;
 }
 
 function runProgress(rows: Record<number, BatchRowState>): string {
@@ -600,13 +705,26 @@ function PreviewTable({
   decimals,
   execRows,
   activeRowId,
+  activeStartedAt,
 }: {
   rows: ValidatedRow[];
   tokenId: ShieldTokenId;
   decimals: number;
   execRows: Record<number, BatchRowState>;
   activeRowId: number | null;
+  activeStartedAt: number | null;
 }) {
+  // Tick once a second so the active row's elapsed timer updates without
+  // re-rendering the whole table on every event from the SDK.
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    if (activeRowId === null || activeStartedAt === null) return;
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
+  }, [activeRowId, activeStartedAt]);
+  const activeElapsedMs =
+    activeStartedAt !== null ? Math.max(0, now - activeStartedAt) : 0;
+
   return (
     <div className="overflow-hidden rounded-xl border border-border">
       <div className="max-h-[420px] overflow-auto">
@@ -644,7 +762,7 @@ function PreviewTable({
                       r.walletIssue ? "text-destructive" : "text-foreground/90",
                     )}
                   >
-                    {r.wallet ? shortAddr(r.wallet) : "—"}
+                    {r.wallet ? shortAddr(r.wallet) : "·"}
                     {r.walletIssue && (
                       <span className="ml-2 font-sans text-[10.5px] uppercase tracking-[0.1em]">
                         {describeRowIssue(r.walletIssue)}
@@ -657,7 +775,7 @@ function PreviewTable({
                       r.amountIssue ? "text-destructive" : "text-foreground/90",
                     )}
                   >
-                    {r.amount || "—"}{" "}
+                    {r.amount || "·"}{" "}
                     <span className="text-muted-foreground">{tokenId}</span>
                     {r.amountIssue && (
                       <div className="mt-0.5 font-sans text-[10.5px] uppercase tracking-[0.1em]">
@@ -672,13 +790,14 @@ function PreviewTable({
                         <span className="text-muted-foreground">{tokenId}</span>
                       </span>
                     ) : (
-                      <span className="text-muted-foreground">—</span>
+                      <span className="text-muted-foreground">·</span>
                     )}
                   </td>
                   <td className="px-3 py-2 text-right">
                     <RowStatus
                       validRow={r.isValid}
                       exec={exec}
+                      elapsedMs={isActive ? activeElapsedMs : null}
                     />
                   </td>
                 </tr>
@@ -694,9 +813,11 @@ function PreviewTable({
 function RowStatus({
   validRow,
   exec,
+  elapsedMs,
 }: {
   validRow: boolean;
   exec?: BatchRowState;
+  elapsedMs: number | null;
 }) {
   if (!validRow) {
     return (
@@ -739,7 +860,9 @@ function RowStatus({
     );
   }
 
-  // proving / submitting — show a small inline label with %
+  // proving / submitting: small inline label with %, plus elapsed timer
+  // so the row feels alive during the longer waits.
+  const elapsedSec = elapsedMs !== null ? Math.floor(elapsedMs / 1000) : null;
   return (
     <span
       title={exec.progress ?? statusLabel(exec.status)}
@@ -747,8 +870,11 @@ function RowStatus({
     >
       <span className="size-1.5 animate-pulse rounded-full bg-primary" />
       {phaseShort(exec.status)}
-      {exec.proofPercent !== null && exec.status.startsWith("proving") && (
+      {exec.proofPercent !== null && exec.status === "paying-proof" && (
         <span className="font-mono">{Math.round(exec.proofPercent)}%</span>
+      )}
+      {elapsedSec !== null && (
+        <span className="font-mono text-primary/70">{elapsedSec}s</span>
       )}
     </span>
   );
@@ -756,13 +882,9 @@ function RowStatus({
 
 function statusLabel(s: BatchRowStatus): string {
   switch (s) {
-    case "proving-deposit":
-      return "Generating deposit proof";
-    case "submitting-deposit":
-      return "Submitting deposit";
-    case "proving-withdraw":
-      return "Generating withdraw proof";
-    case "submitting-withdraw":
+    case "paying-proof":
+      return "Generating payout proof";
+    case "paying-submit":
       return "Submitting payout";
     case "confirmed":
       return "Confirmed";
@@ -775,14 +897,10 @@ function statusLabel(s: BatchRowStatus): string {
 
 function phaseShort(s: BatchRowStatus): string {
   switch (s) {
-    case "proving-deposit":
-      return "Shield";
-    case "submitting-deposit":
-      return "Settle";
-    case "proving-withdraw":
+    case "paying-proof":
       return "Payout";
-    case "submitting-withdraw":
-      return "Confirm";
+    case "paying-submit":
+      return "Settle";
     default:
       return "";
   }

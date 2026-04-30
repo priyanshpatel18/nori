@@ -50,12 +50,12 @@ const wsUrl = isWsUrl(envWsUrl) ? envWsUrl : DEFAULT_WS[cluster];
 
 if (envRpcUrl && envRpcUrl !== rpcUrl) {
   console.warn(
-    `Ignoring NEXT_PUBLIC_SOLANA_RPC_URL "${envRpcUrl}" — must start with http:// or https://. Using ${rpcUrl}.`,
+    `Ignoring NEXT_PUBLIC_SOLANA_RPC_URL "${envRpcUrl}": must start with http:// or https://. Using ${rpcUrl}.`,
   );
 }
 if (envWsUrl && envWsUrl !== wsUrl) {
   console.warn(
-    `Ignoring NEXT_PUBLIC_SOLANA_WS_URL "${envWsUrl}" — must start with ws:// or wss://. Using ${wsUrl}.`,
+    `Ignoring NEXT_PUBLIC_SOLANA_WS_URL "${envWsUrl}": must start with ws:// or wss://. Using ${wsUrl}.`,
   );
 }
 

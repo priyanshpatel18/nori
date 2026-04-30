@@ -5,29 +5,17 @@ const STORAGE_PREFIX = "cloak:payments:v1";
 const MAX_RECORDS = 200;
 
 export type PaymentRecord = {
-  /** Stable id — uses the deposit signature. */
   id: string;
-  /** Cluster the payment landed on. */
   cluster: SolanaCluster;
-  /** Sender wallet (base58). */
   sender: string;
-  /** Recipient wallet (base58). */
   recipient: string;
-  /** Token id (SOL/USDC/USDT). */
   token: ShieldTokenId;
-  /** Token mint (base58). */
   mint: string;
-  /** Token decimals. */
   decimals: number;
-  /** Amount the sender entered, in base units. Stored as string for bigint safety. */
   amountRaw: string;
-  /** Net amount the recipient received, in base units. */
   netRaw: string;
-  /** Solana tx signature for the shield (deposit) leg. */
   depositSignature: string;
-  /** Solana tx signature for the payout (withdraw) leg. */
   withdrawSignature: string;
-  /** Wall-clock ms when the payment landed. */
   timestamp: number;
 };
 
@@ -62,7 +50,6 @@ export function appendPayment(
 ): PaymentRecord[] {
   if (!isBrowser()) return [];
   const current = loadPayments(sender, cluster);
-  // De-dupe on id (deposit signature) so a hot reload doesn't double-append.
   const without = current.filter((r) => r.id !== record.id);
   const next = [record, ...without].slice(0, MAX_RECORDS);
   try {
@@ -73,8 +60,7 @@ export function appendPayment(
       }),
     );
   } catch {
-    // Quota or serialization failures: fail silent — the success card still
-    // shows the user their tx links, history is best-effort.
+    // ignore
   }
   return next;
 }

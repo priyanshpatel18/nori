@@ -15,7 +15,15 @@ export function SolanaProvider({ children }: { children: ReactNode }) {
   const wallets = useMemo(() => [], []);
 
   return (
-    <ConnectionProvider endpoint={solanaConfig.rpcUrl}>
+    // `processed` is the lowest commitment level. Solana txs at this level have
+    // been included in a leader's block but not voted on yet. Reorg risk is
+    // <1% in normal conditions, and our SDK retry path (stale-note + RootNotFound)
+    // catches the rare case. Trade: faster `confirmTransaction` returns →
+    // noticeably snappier fast-send flow, especially in batch payroll.
+    <ConnectionProvider
+      endpoint={solanaConfig.rpcUrl}
+      config={{ commitment: "processed" }}
+    >
       <WalletProvider wallets={wallets} autoConnect>
         {children}
       </WalletProvider>

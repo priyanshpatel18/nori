@@ -640,7 +640,7 @@ function SuccessTxRow({
           <span className="sr-only">Open on Solscan</span>
         </a>
       ) : (
-        <span className="font-mono text-[11.5px] text-muted-foreground">—</span>
+        <span className="font-mono text-[11.5px] text-muted-foreground">·</span>
       )}
     </div>
   );

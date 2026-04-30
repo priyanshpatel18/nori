@@ -32,17 +32,16 @@ export async function parsePayrollCsv(
   file: File,
 ): Promise<PayrollParseResult> {
   const text = await file.text();
+  return parsePayrollCsvText(text);
+}
 
-  return new Promise((resolve) => {
-    Papa.parse<Record<string, string>>(text, {
-      header: true,
-      skipEmptyLines: "greedy",
-      transformHeader: (h) => h.trim().toLowerCase(),
-      complete: (result) => {
-        resolve(buildResult(result));
-      },
-    });
+export function parsePayrollCsvText(text: string): PayrollParseResult {
+  const result = Papa.parse<Record<string, string>>(text, {
+    header: true,
+    skipEmptyLines: "greedy",
+    transformHeader: (h) => h.trim().toLowerCase(),
   });
+  return buildResult(result);
 }
 
 function buildResult(

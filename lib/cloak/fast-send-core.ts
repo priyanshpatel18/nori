@@ -18,8 +18,6 @@ import {
 
 import { applyBufferPolyfill } from "@/lib/buffer-polyfill";
 
-import { cloakConfig } from "./config";
-
 export type FastSendPhase =
   | "deposit-proof"
   | "deposit-submit"
@@ -29,9 +27,7 @@ export type FastSendPhase =
 
 export type FastSendCallbacks = {
   onPhase?: (phase: FastSendPhase) => void;
-  /** Mirrors the SDK's onProgress for both legs. */
   onProgress?: (status: string) => void;
-  /** 0–100 from the SDK's onProofProgress for the active proof phase. */
   onProofProgress?: (percent: number) => void;
 };
 
@@ -41,6 +37,8 @@ export type FastSendOnceArgs = {
   recipient: PublicKey;
   sender: PublicKey;
   connection: Connection;
+  programId: PublicKey;
+  relayUrl: string;
   signTransaction: <T extends Transaction | VersionedTransaction>(
     transaction: T,
   ) => Promise<T>;
@@ -50,21 +48,17 @@ export type FastSendOnceArgs = {
 export type FastSendOnceResult = {
   depositSignature: string;
   withdrawSignature: string;
-  /**
-   * The deposit Merkle tree, returned in case the caller wants to chain another
-   * operation off this UTXO before it propagates to the relay.
-   */
   depositMerkleTree?: TransactResult["merkleTree"];
 };
 
 const WITHDRAW_MAX_ATTEMPTS = 3;
 const WITHDRAW_RETRY_DELAY_MS = 1500;
 
-/**
- * Execute one fast-send (deposit + fullWithdraw to recipient). Pure async
- * function — no React state. Callers (single-send hook, batch hook, etc.)
- * subscribe to phase / progress via callbacks.
- */
+// Wait this long after the deposit lands before attempting the withdraw, so
+// the relay's commitment-tree fetch sees our new note. Multiplied per retry:
+// 4s, 8s, 12s.
+const POST_DEPOSIT_BASE_DELAY_MS = 4000;
+
 export async function fastSendOnce(
   args: FastSendOnceArgs,
 ): Promise<FastSendOnceResult> {
@@ -74,6 +68,8 @@ export async function fastSendOnce(
     recipient,
     sender,
     connection,
+    programId,
+    relayUrl,
     signTransaction,
     signMessage,
     onPhase,
@@ -83,7 +79,6 @@ export async function fastSendOnce(
 
   applyBufferPolyfill();
 
-  // Phase 1 — deposit proof + submit
   onPhase?.("deposit-proof");
 
   const ephemeralOwner = await generateUtxoKeypair();
@@ -100,12 +95,15 @@ export async function fastSendOnce(
     },
     {
       connection,
-      programId: cloakConfig.programId,
-      relayUrl: cloakConfig.relayUrl,
+      programId,
+      relayUrl,
       depositorPublicKey: sender,
       walletPublicKey: sender,
       signTransaction,
       signMessage,
+      // Skipping registration drops the extra signMessage popup. Fast-send
+      // uses ephemeral UTXOs, so no persistent shielded balance needs scanning.
+      enforceViewingKeyRegistration: false,
       onProgress: (status) => {
         if (
           depositPhase === "deposit-proof" &&
@@ -120,11 +118,23 @@ export async function fastSendOnce(
     },
   );
 
-  // Phase 2 — withdraw proof + submit, with stale-root retry
+  // The relay validates each UTXO's commitment against its just-fetched
+  // leaves (SDK dist/index.js:4699) even when we pass cachedMerkleTree. Sleep
+  // before the withdraw so the relay's view includes our deposit. Backoff on
+  // retry: 4s, 8s, 12s.
   let withdrawResult: TransactResult | undefined;
   for (let attempt = 1; attempt <= WITHDRAW_MAX_ATTEMPTS; attempt += 1) {
     let withdrawPhase: FastSendPhase = "withdraw-proof";
     onPhase?.("withdraw-proof");
+    onProgress?.(
+      attempt === 1
+        ? "Waiting for relay to index deposit"
+        : `Waiting for relay (retry ${attempt}/${WITHDRAW_MAX_ATTEMPTS})`,
+    );
+
+    const settleDelay = POST_DEPOSIT_BASE_DELAY_MS * attempt;
+    await sleep(settleDelay);
+
     onProgress?.(
       attempt === 1
         ? "Generating withdraw proof"
@@ -134,11 +144,12 @@ export async function fastSendOnce(
     try {
       withdrawResult = await fullWithdraw(depositResult.outputUtxos, recipient, {
         connection,
-        programId: cloakConfig.programId,
-        relayUrl: cloakConfig.relayUrl,
+        programId,
+        relayUrl,
         walletPublicKey: sender,
         signTransaction,
         signMessage,
+        enforceViewingKeyRegistration: false,
         cachedMerkleTree: depositResult.merkleTree,
         onProgress: (status) => {
           if (
@@ -154,7 +165,9 @@ export async function fastSendOnce(
       });
       break;
     } catch (err) {
-      if (!isRootNotFoundError(err) || attempt === WITHDRAW_MAX_ATTEMPTS) {
+      const recoverable =
+        isRootNotFoundError(err) || isStaleNoteError(err);
+      if (!recoverable || attempt === WITHDRAW_MAX_ATTEMPTS) {
         throw err;
       }
       await sleep(WITHDRAW_RETRY_DELAY_MS);
@@ -172,6 +185,15 @@ export async function fastSendOnce(
     withdrawSignature: withdrawResult.signature,
     depositMerkleTree: depositResult.merkleTree,
   };
+}
+
+export function isStaleNoteError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message;
+  return (
+    msg.includes("note index is stale") ||
+    msg.includes("Local note commitment does not match relay tree")
+  );
 }
 
 export function isSubmittingStatus(status: string): boolean {

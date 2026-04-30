@@ -13,6 +13,7 @@ import {
   isSubmittingStatus,
   type FastSendPhase,
 } from "./fast-send-core";
+import { createMemoizedSignMessage } from "./sign-message-cache";
 
 export type FastSendStatus =
   | "idle"
@@ -59,6 +60,14 @@ export function useFastSend() {
   const wallet = useWallet();
   const [state, setState] = React.useState<FastSendState>(initialState);
 
+  // Per-session signMessage cache, keyed on wallet pubkey. The Cloak SDK
+  // signs a deterministic string for viewing-key registration; cache the
+  // signature so subsequent sends in the same session don't re-prompt.
+  const signMessageCacheRef = React.useRef<{
+    publicKey: string | null;
+    fn: ((message: Uint8Array) => Promise<Uint8Array>) | null;
+  }>({ publicKey: null, fn: null });
+
   const reset = React.useCallback(() => setState(initialState), []);
 
   const send = React.useCallback(
@@ -80,6 +89,20 @@ export function useFastSend() {
         );
 
       const sender = wallet.publicKey;
+      const senderBase58 = sender.toBase58();
+
+      // Refresh the signMessage memoizer if the wallet changed since last send.
+      let memoizedSignMessage = signMessageCacheRef.current.fn;
+      if (
+        signMessageCacheRef.current.publicKey !== senderBase58 ||
+        !memoizedSignMessage
+      ) {
+        memoizedSignMessage = createMemoizedSignMessage(wallet.signMessage);
+        signMessageCacheRef.current = {
+          publicKey: senderBase58,
+          fn: memoizedSignMessage,
+        };
+      }
 
       try {
         setState({
@@ -95,8 +118,10 @@ export function useFastSend() {
           recipient,
           sender,
           connection,
+          programId: cloakConfig.programId,
+          relayUrl: cloakConfig.relayUrl,
           signTransaction: wallet.signTransaction,
-          signMessage: wallet.signMessage,
+          signMessage: memoizedSignMessage,
           onPhase: (phase) =>
             setState((s) => onPhaseTick(s, phase)),
           onProgress: (status) =>
