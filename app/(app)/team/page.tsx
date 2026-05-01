@@ -3,8 +3,10 @@
 import {
   Add01Icon,
   Alert02Icon,
+  Calendar03Icon,
   Delete02Icon,
   PencilEdit02Icon,
+  ReloadIcon,
   Search01Icon,
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
@@ -27,22 +29,44 @@ import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  getShieldToken,
+  getShieldTokenByMint,
   isShieldTokenSupported,
   type ShieldTokenId,
 } from "@/lib/cloak/tokens";
 import { solanaConfig } from "@/lib/solana/config";
 import {
   addMember,
+  clearSchedule,
   deleteMember,
+  setSchedule,
   updateMember,
 } from "@/lib/team/storage";
+import {
+  WEEKDAY_LABELS,
+  biweeklyIndex,
+  describeSchedule,
+  isDue,
+  nextBiweeklyIndexForDow,
+  ordinal,
+} from "@/lib/team/schedule";
 import { useTeam } from "@/lib/team/use-team";
 import {
   hasErrors,
   validateMemberDraft,
   type MemberDraftErrors,
 } from "@/lib/team/validate-member";
-import type { TeamMember, TeamMemberDraft } from "@/lib/team/types";
+import {
+  hasScheduleErrors,
+  validateScheduleDraft,
+  type ScheduleDraftErrors,
+} from "@/lib/team/validate-schedule";
+import type {
+  MemberSchedule,
+  ScheduleCadence,
+  TeamMember,
+  TeamMemberDraft,
+} from "@/lib/team/types";
 import { cn } from "@/lib/utils";
 
 const TOKEN_OPTIONS: {
@@ -252,6 +276,7 @@ function MemberRow({
           <p className="truncate text-[14px] font-medium text-foreground">
             {member.name}
           </p>
+          {member.schedule && <ScheduleBadge schedule={member.schedule} />}
           {!supported && (
             <span
               title={`${member.token} is not available on ${solanaConfig.cluster}`}
@@ -305,6 +330,54 @@ function MemberRow({
       </div>
     </motion.li>
   );
+}
+
+function ScheduleBadge({ schedule }: { schedule: MemberSchedule }) {
+  const due = isDue(schedule);
+  const label = describeSchedule(schedule);
+  return (
+    <span
+      title={
+        due
+          ? `${label} · due now`
+          : schedule.lastPaidAt
+            ? `${label} · last paid ${formatRelativeDate(schedule.lastPaidAt)}`
+            : `${label} · awaiting first run`
+      }
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-medium",
+        due
+          ? "border-primary/40 bg-primary/15 text-primary"
+          : "border-border bg-background/40 text-muted-foreground",
+      )}
+    >
+      <HugeiconsIcon icon={Calendar03Icon} size={10} strokeWidth={2.2} />
+      {due ? "Due now" : shortScheduleLabel(schedule)}
+    </span>
+  );
+}
+
+function shortScheduleLabel(s: MemberSchedule): string {
+  if (s.cadence === "daily") return "Daily";
+  if (s.cadence === "test") {
+    const left = s.runsRemaining ?? 0;
+    return left > 0 ? `Test · ${left} left` : "Test · done";
+  }
+  if (s.cadence === "weekly") {
+    return `Weekly · ${WEEKDAY_LABELS[s.dayOfCycle]?.slice(0, 3) ?? ""}`;
+  }
+  if (s.cadence === "biweekly") {
+    return `Biweekly · ${WEEKDAY_LABELS[s.dayOfCycle % 7]?.slice(0, 3) ?? ""}`;
+  }
+  return `Monthly · ${ordinal(s.dayOfCycle)}`;
+}
+
+function formatRelativeDate(ms: number): string {
+  const d = new Date(ms);
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function Avatar({ name }: { name: string }) {
@@ -362,6 +435,18 @@ function MemberDialog({
   );
 }
 
+type ScheduleFormState = {
+  on: boolean;
+  cadence: ScheduleCadence;
+  dayOfCycle: number;
+  amount: string;
+  tokenId: ShieldTokenId;
+  intervalSec: number;
+  runsRemaining: number;
+};
+
+const TEST_DEFAULTS = { intervalSec: 30, runsRemaining: 2 };
+
 function MemberForm({
   mode,
   member,
@@ -377,6 +462,11 @@ function MemberForm({
     initialDraft(member),
   );
   const [errors, setErrors] = React.useState<MemberDraftErrors>({});
+  const [schedule, setScheduleState] = React.useState<ScheduleFormState>(() =>
+    initialSchedule(member, draft),
+  );
+  const [scheduleErrors, setScheduleErrors] =
+    React.useState<ScheduleDraftErrors>({});
   const [submitted, setSubmitted] = React.useState(false);
 
   const setField = <K extends keyof TeamMemberDraft>(
@@ -397,21 +487,83 @@ function MemberForm({
     });
   };
 
+  const setScheduleField = <K extends keyof ScheduleFormState>(
+    key: K,
+    value: ScheduleFormState[K],
+  ) => {
+    setScheduleState((s) => {
+      const next = { ...s, [key]: value };
+      if (submitted && next.on) {
+        const mint = mintForTokenId(next.tokenId);
+        setScheduleErrors(
+          validateScheduleDraft({
+            cadence: next.cadence,
+            dayOfCycle: next.dayOfCycle,
+            amount: next.amount,
+            mint,
+            intervalSec: next.intervalSec,
+            runsRemaining: next.runsRemaining,
+          }),
+        );
+      }
+      return next;
+    });
+  };
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
-    const nextErrors = validateMemberDraft(draft, {
+
+    const memberErrs = validateMemberDraft(draft, {
       existing,
       editingId: member?.id,
     });
-    setErrors(nextErrors);
-    if (hasErrors(nextErrors)) return;
+    setErrors(memberErrs);
 
+    let scheduleErrs: ScheduleDraftErrors = {};
+    if (schedule.on) {
+      scheduleErrs = validateScheduleDraft({
+        cadence: schedule.cadence,
+        dayOfCycle: schedule.dayOfCycle,
+        amount: schedule.amount,
+        mint: mintForTokenId(schedule.tokenId),
+        intervalSec: schedule.intervalSec,
+        runsRemaining: schedule.runsRemaining,
+      });
+      setScheduleErrors(scheduleErrs);
+    } else {
+      setScheduleErrors({});
+    }
+
+    if (hasErrors(memberErrs) || hasScheduleErrors(scheduleErrs)) return;
+
+    let memberId: string | undefined;
     if (mode === "add") {
-      addMember(solanaConfig.cluster, draft);
+      memberId = addMember(solanaConfig.cluster, draft).id;
     } else if (member) {
+      memberId = member.id;
       updateMember(solanaConfig.cluster, member.id, draft);
     }
+
+    if (memberId) {
+      if (schedule.on) {
+        setSchedule(solanaConfig.cluster, memberId, {
+          cadence: schedule.cadence,
+          dayOfCycle: schedule.dayOfCycle,
+          amount: schedule.amount,
+          mint: mintForTokenId(schedule.tokenId),
+          ...(schedule.cadence === "test"
+            ? {
+                intervalSec: schedule.intervalSec,
+                runsRemaining: schedule.runsRemaining,
+              }
+            : null),
+        });
+      } else if (member?.schedule) {
+        clearSchedule(solanaConfig.cluster, memberId);
+      }
+    }
+
     onClose();
   };
 
@@ -442,27 +594,12 @@ function MemberForm({
 
       <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
         <Field label="Default amount" error={errors.amount} required>
-          <label
-            data-invalid={errors.amount ? "true" : undefined}
-            className={cn(
-              "flex h-11 w-full cursor-text items-center gap-2 rounded-xl border border-border bg-input/60 px-3.5",
-              "shadow-[inset_0_1px_0_0_color-mix(in_oklch,var(--foreground)_4%,transparent)]",
-              "transition-colors focus-within:border-ring focus-within:bg-input",
-              "data-[invalid=true]:border-destructive data-[invalid=true]:focus-within:border-destructive",
-            )}
-          >
-            <input
-              value={draft.amount}
-              onChange={(e) => setField("amount", e.target.value)}
-              placeholder="0.00"
-              inputMode="decimal"
-              className="h-full w-full min-w-0 bg-transparent font-mono text-[14px] text-foreground outline-none placeholder:text-muted-foreground"
-            />
-            <span className="inline-flex shrink-0 items-center gap-1.5 text-[12.5px] font-medium text-muted-foreground">
-              <TokenIcon id={draft.token} className="size-3.5" />
-              {draft.token}
-            </span>
-          </label>
+          <AmountWithToken
+            amount={draft.amount}
+            tokenId={draft.token}
+            invalid={Boolean(errors.amount)}
+            onAmountChange={(v) => setField("amount", v)}
+          />
         </Field>
 
         <Field label="Token" error={errors.token}>
@@ -482,6 +619,24 @@ function MemberForm({
         />
       </Field>
 
+      <ScheduleSection
+        state={schedule}
+        errors={scheduleErrors}
+        defaultAmount={draft.amount}
+        defaultToken={draft.token}
+        onToggle={(on) =>
+          setScheduleState((s) => ({
+            ...s,
+            on,
+            // Pre-fill from member defaults the first time the toggle is on.
+            ...(on && !s.amount
+              ? { amount: draft.amount, tokenId: draft.token }
+              : null),
+          }))
+        }
+        onSetField={setScheduleField}
+      />
+
       <DialogFooter className="mt-2">
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
@@ -491,6 +646,326 @@ function MemberForm({
         </FancyButton>
       </DialogFooter>
     </form>
+  );
+}
+
+function AmountWithToken({
+  amount,
+  tokenId,
+  invalid,
+  onAmountChange,
+}: {
+  amount: string;
+  tokenId: ShieldTokenId;
+  invalid?: boolean;
+  onAmountChange: (v: string) => void;
+}) {
+  return (
+    <label
+      data-invalid={invalid ? "true" : undefined}
+      className={cn(
+        "flex h-11 w-full cursor-text items-center gap-2 rounded-xl border border-border bg-input/60 px-3.5",
+        "shadow-[inset_0_1px_0_0_color-mix(in_oklch,var(--foreground)_4%,transparent)]",
+        "transition-colors focus-within:border-ring focus-within:bg-input",
+        "data-[invalid=true]:border-destructive data-[invalid=true]:focus-within:border-destructive",
+      )}
+    >
+      <input
+        value={amount}
+        onChange={(e) => onAmountChange(e.target.value)}
+        placeholder="0.00"
+        inputMode="decimal"
+        className="h-full w-full min-w-0 bg-transparent font-mono text-[14px] text-foreground outline-none placeholder:text-muted-foreground"
+      />
+      <span className="inline-flex shrink-0 items-center gap-1.5 text-[12.5px] font-medium text-muted-foreground">
+        <TokenIcon id={tokenId} className="size-3.5" />
+        {tokenId}
+      </span>
+    </label>
+  );
+}
+
+const CADENCES: { id: ScheduleCadence; label: string }[] = [
+  { id: "daily", label: "Daily" },
+  { id: "weekly", label: "Weekly" },
+  { id: "biweekly", label: "Biweekly" },
+  { id: "monthly", label: "Monthly" },
+  { id: "test", label: "Test" },
+];
+
+function ScheduleSection({
+  state,
+  errors,
+  onToggle,
+  onSetField,
+}: {
+  state: ScheduleFormState;
+  errors: ScheduleDraftErrors;
+  defaultAmount: string;
+  defaultToken: ShieldTokenId;
+  onToggle: (on: boolean) => void;
+  onSetField: <K extends keyof ScheduleFormState>(
+    key: K,
+    value: ScheduleFormState[K],
+  ) => void;
+}) {
+  const { on, cadence, dayOfCycle, amount, tokenId } = state;
+
+  const onCadenceChange = (next: ScheduleCadence) => {
+    if (next === cadence) return;
+    // Re-anchor dayOfCycle to "today" for the new cadence so users see the
+    // schedule starting on a sensible default rather than a value out of range.
+    onSetField("cadence", next);
+    onSetField("dayOfCycle", defaultDayForCadence(next));
+    if (next === "test") {
+      // Reset test counters whenever we enter test mode so a re-arm starts
+      // from the configured run count, not 0.
+      onSetField("intervalSec", TEST_DEFAULTS.intervalSec);
+      onSetField("runsRemaining", TEST_DEFAULTS.runsRemaining);
+    }
+  };
+
+  const onDowChange = (dow: number) => {
+    if (cadence === "weekly") onSetField("dayOfCycle", dow);
+    else if (cadence === "biweekly")
+      onSetField("dayOfCycle", nextBiweeklyIndexForDow(dow));
+  };
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-input/30 p-4">
+      <header className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary"
+          >
+            <HugeiconsIcon icon={ReloadIcon} size={13} strokeWidth={1.8} />
+          </span>
+          <div className="flex flex-col">
+            <p className="text-[13px] font-medium text-foreground">
+              Recurring payment
+            </p>
+            <p className="text-[11.5px] text-muted-foreground">
+              {on
+                ? describeSchedule({
+                    cadence,
+                    dayOfCycle,
+                    amount,
+                    mint: mintForTokenId(tokenId),
+                  })
+                : "Off — pay this person on demand."}
+            </p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant={on ? "ghost" : "secondary"}
+          size="sm"
+          onClick={() => onToggle(!on)}
+        >
+          {on ? (
+            "Remove"
+          ) : (
+            <>
+              <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={2.2} />
+              Add schedule
+            </>
+          )}
+        </Button>
+      </header>
+
+      <AnimatePresence initial={false}>
+        {on && (
+          <motion.div
+            key="body"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="flex flex-col gap-4 pt-2">
+              <Field label="Cadence" error={errors.cadence}>
+                <div className="flex h-10 items-center gap-1 rounded-xl border border-border bg-input/60 p-1">
+                  {CADENCES.map((c) => {
+                    const isActive = cadence === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => onCadenceChange(c.id)}
+                        className={cn(
+                          "relative flex flex-1 items-center justify-center rounded-lg px-2 py-1 text-[12px] font-medium transition-colors",
+                          isActive
+                            ? "text-primary"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {isActive && (
+                          <motion.span
+                            layoutId="team-cadence-active"
+                            aria-hidden="true"
+                            className="absolute inset-0 -z-0 rounded-lg border border-primary/40 bg-primary/15"
+                            transition={{
+                              type: "spring",
+                              stiffness: 380,
+                              damping: 30,
+                            }}
+                          />
+                        )}
+                        <span className="relative z-10">{c.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
+
+              {cadence === "monthly" && (
+                <Field
+                  label="Day of month"
+                  error={errors.dayOfCycle}
+                  hint={
+                    <span className="font-mono text-[10.5px] text-muted-foreground">
+                      Short months clamp to last day
+                    </span>
+                  }
+                >
+                  <MonthlyDayPicker
+                    value={dayOfCycle}
+                    onChange={(v) => onSetField("dayOfCycle", v)}
+                  />
+                </Field>
+              )}
+
+              {(cadence === "weekly" || cadence === "biweekly") && (
+                <Field
+                  label={cadence === "weekly" ? "Pay on" : "Every other"}
+                  error={errors.dayOfCycle}
+                >
+                  <WeekdayPicker
+                    value={dayOfCycle % 7}
+                    onChange={onDowChange}
+                  />
+                </Field>
+              )}
+
+              {cadence === "daily" && (
+                <p className="text-[12px] text-muted-foreground">
+                  Pays once a day at midnight (local time).
+                </p>
+              )}
+
+              {cadence === "test" && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Every" error={errors.intervalSec}>
+                    <SecondsInput
+                      value={state.intervalSec}
+                      onChange={(v) => onSetField("intervalSec", v)}
+                      invalid={Boolean(errors.intervalSec)}
+                    />
+                  </Field>
+                  <Field label="Total runs" error={errors.runsRemaining}>
+                    <NumberInput
+                      value={state.runsRemaining}
+                      onChange={(v) => onSetField("runsRemaining", v)}
+                      min={1}
+                      max={100}
+                      invalid={Boolean(errors.runsRemaining)}
+                      suffix="runs"
+                    />
+                  </Field>
+                  <p className="text-[11.5px] text-muted-foreground sm:col-span-2">
+                    Test mode fires immediately on save, then every interval
+                    until the run count is exhausted.
+                  </p>
+                </div>
+              )}
+
+              <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
+                <Field label="Amount" error={errors.amount} required>
+                  <AmountWithToken
+                    amount={amount}
+                    tokenId={tokenId}
+                    invalid={Boolean(errors.amount)}
+                    onAmountChange={(v) => onSetField("amount", v)}
+                  />
+                </Field>
+
+                <Field label="Token" error={errors.mint}>
+                  <TokenPicker
+                    value={tokenId}
+                    onChange={(t) => onSetField("tokenId", t)}
+                  />
+                </Field>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function WeekdayPicker({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="grid grid-cols-7 gap-1">
+      {WEEKDAY_LABELS.map((label, i) => {
+        const isActive = value === i;
+        return (
+          <button
+            key={label}
+            type="button"
+            onClick={() => onChange(i)}
+            title={label}
+            className={cn(
+              "h-9 rounded-lg border text-[12px] font-medium transition-colors",
+              isActive
+                ? "border-primary/40 bg-primary/15 text-primary"
+                : "border-border bg-input/60 text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {label.slice(0, 1)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function MonthlyDayPicker({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="grid grid-cols-7 gap-1 sm:grid-cols-10">
+      {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
+        const isActive = value === d;
+        return (
+          <button
+            key={d}
+            type="button"
+            onClick={() => onChange(d)}
+            className={cn(
+              "h-8 rounded-lg border font-mono text-[11.5px] transition-colors",
+              isActive
+                ? "border-primary/40 bg-primary/15 text-primary"
+                : "border-border bg-input/60 text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {d}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -518,25 +993,20 @@ function TokenPicker({
                 : `${t.label} not available on ${solanaConfig.cluster}`
             }
             className={cn(
-              "relative flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-medium transition-colors",
+              "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-medium transition-colors",
               isActive
                 ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground",
+                : "text-muted-foreground/70 hover:text-foreground",
               !supported && "opacity-40",
             )}
           >
-            {isActive && (
-              <motion.span
-                layoutId="team-token-active"
-                aria-hidden="true"
-                className="absolute inset-0 -z-0 rounded-lg bg-secondary"
-                transition={{ type: "spring", stiffness: 380, damping: 30 }}
-              />
-            )}
-            <span className="relative z-10 flex items-center gap-1.5">
-              <t.Logo className="size-3.5" />
-              {t.label}
-            </span>
+            <t.Logo
+              className={cn(
+                "size-3.5 transition-[filter,opacity] duration-200",
+                !isActive && "opacity-50 grayscale",
+              )}
+            />
+            {t.label}
           </button>
         );
       })}
@@ -544,20 +1014,91 @@ function TokenPicker({
   );
 }
 
+function SecondsInput({
+  value,
+  onChange,
+  invalid,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  invalid?: boolean;
+}) {
+  return (
+    <NumberInput
+      value={value}
+      onChange={onChange}
+      min={5}
+      max={3600}
+      invalid={invalid}
+      suffix="sec"
+    />
+  );
+}
+
+function NumberInput({
+  value,
+  onChange,
+  min,
+  max,
+  invalid,
+  suffix,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  min: number;
+  max: number;
+  invalid?: boolean;
+  suffix?: string;
+}) {
+  return (
+    <label
+      data-invalid={invalid ? "true" : undefined}
+      className={cn(
+        "flex h-11 w-full cursor-text items-center gap-2 rounded-xl border border-border bg-input/60 px-3.5",
+        "shadow-[inset_0_1px_0_0_color-mix(in_oklch,var(--foreground)_4%,transparent)]",
+        "transition-colors focus-within:border-ring focus-within:bg-input",
+        "data-[invalid=true]:border-destructive data-[invalid=true]:focus-within:border-destructive",
+      )}
+    >
+      <input
+        type="number"
+        inputMode="numeric"
+        min={min}
+        max={max}
+        value={Number.isFinite(value) ? value : ""}
+        onChange={(e) => {
+          const next = Number(e.target.value);
+          onChange(Number.isFinite(next) ? next : 0);
+        }}
+        className="h-full w-full min-w-0 bg-transparent font-mono text-[14px] text-foreground outline-none placeholder:text-muted-foreground [appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:m-0"
+      />
+      {suffix && (
+        <span className="shrink-0 text-[12.5px] font-medium text-muted-foreground">
+          {suffix}
+        </span>
+      )}
+    </label>
+  );
+}
+
 function Field({
   label,
   error,
   required,
+  hint,
   children,
 }: {
   label: string;
   error?: string;
   required?: boolean;
+  hint?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label required={required}>{label}</Label>
+      <Label required={required} hint={hint}>
+        {label}
+      </Label>
       {children}
       {error && (
         <p className="flex items-center gap-1.5 text-[11.5px] text-destructive">
@@ -567,6 +1108,50 @@ function Field({
       )}
     </div>
   );
+}
+
+function mintForTokenId(id: ShieldTokenId): string {
+  const t = getShieldToken(id);
+  if (t) return t.mint.toBase58();
+  // Token unsupported on this cluster — return a sentinel that the validator
+  // will reject so the user sees the "unavailable" error explicitly.
+  return "";
+}
+
+function defaultDayForCadence(cadence: ScheduleCadence): number {
+  if (cadence === "daily" || cadence === "test") return 0;
+  const now = new Date();
+  if (cadence === "weekly") return now.getDay();
+  if (cadence === "biweekly") return biweeklyIndex(now);
+  return now.getDate();
+}
+
+function initialSchedule(
+  member: TeamMember | undefined,
+  draft: TeamMemberDraft,
+): ScheduleFormState {
+  if (member?.schedule) {
+    const t = getShieldTokenByMint(member.schedule.mint);
+    return {
+      on: true,
+      cadence: member.schedule.cadence,
+      dayOfCycle: member.schedule.dayOfCycle,
+      amount: member.schedule.amount,
+      tokenId: t?.id ?? draft.token,
+      intervalSec: member.schedule.intervalSec ?? TEST_DEFAULTS.intervalSec,
+      runsRemaining:
+        member.schedule.runsRemaining ?? TEST_DEFAULTS.runsRemaining,
+    };
+  }
+  return {
+    on: false,
+    cadence: "monthly",
+    dayOfCycle: defaultDayForCadence("monthly"),
+    amount: "",
+    tokenId: draft.token,
+    intervalSec: TEST_DEFAULTS.intervalSec,
+    runsRemaining: TEST_DEFAULTS.runsRemaining,
+  };
 }
 
 function DeleteDialog({

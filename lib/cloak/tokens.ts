@@ -53,6 +53,18 @@ export function isShieldTokenSupported(id: ShieldTokenId): boolean {
   return getShieldToken(id) !== null;
 }
 
+export function getShieldTokenByMint(mint: string): ShieldToken | null {
+  const cluster = REGISTRY[solanaConfig.cluster];
+  if (!cluster) return null;
+  for (const id of Object.keys(cluster) as ShieldTokenId[]) {
+    const entry = cluster[id];
+    if (entry && entry.mint.toBase58() === mint) {
+      return { id, ...entry };
+    }
+  }
+  return null;
+}
+
 export function toBaseUnits(amount: string, decimals: number): bigint {
   const [whole, frac = ""] = amount.trim().split(".");
   const fracPadded = (frac + "0".repeat(decimals)).slice(0, decimals);

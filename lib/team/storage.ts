@@ -1,6 +1,10 @@
 import type { SolanaCluster } from "@/lib/solana/config";
 
-import type { TeamMember, TeamMemberDraft } from "./types";
+import type {
+  MemberSchedule,
+  TeamMember,
+  TeamMemberDraft,
+} from "./types";
 
 const STORAGE_PREFIX = "nori:team:v1";
 const STORAGE_EVENT = "nori:team-updated";
@@ -100,6 +104,91 @@ export function deleteMember(cluster: SolanaCluster, id: string): void {
   const next = current.filter((m) => m.id !== id);
   if (next.length === current.length) return;
   persist(cluster, next);
+}
+
+function patchMember(
+  cluster: SolanaCluster,
+  id: string,
+  patch: (m: TeamMember) => TeamMember,
+): TeamMember | null {
+  const current = loadTeam(cluster);
+  const idx = current.findIndex((m) => m.id === id);
+  if (idx === -1) return null;
+  const updated = patch(current[idx]);
+  const next = [...current];
+  next[idx] = updated;
+  persist(cluster, next);
+  return updated;
+}
+
+export function setSchedule(
+  cluster: SolanaCluster,
+  id: string,
+  schedule: Omit<MemberSchedule, "lastPaidAt">,
+): TeamMember | null {
+  return patchMember(cluster, id, (m) => {
+    let lastPaidAt = m.schedule?.lastPaidAt;
+
+    // For test cadence: when entering test mode (or coming from a different
+    // cadence), seed lastPaidAt so the first fire happens immediately. Without
+    // this, the user would have to wait `intervalSec` to see anything.
+    if (
+      schedule.cadence === "test" &&
+      m.schedule?.cadence !== "test" &&
+      typeof schedule.intervalSec === "number"
+    ) {
+      lastPaidAt = Date.now() - schedule.intervalSec * 1000;
+    }
+
+    return {
+      ...m,
+      schedule: {
+        cadence: schedule.cadence,
+        dayOfCycle: schedule.dayOfCycle,
+        amount: schedule.amount.trim(),
+        mint: schedule.mint,
+        // Preserve lastPaidAt across edits so the cycle math stays continuous.
+        lastPaidAt,
+        ...(schedule.cadence === "test"
+          ? {
+              intervalSec: schedule.intervalSec,
+              runsRemaining: schedule.runsRemaining,
+            }
+          : null),
+      },
+      updatedAt: Date.now(),
+    };
+  });
+}
+
+export function clearSchedule(
+  cluster: SolanaCluster,
+  id: string,
+): TeamMember | null {
+  return patchMember(cluster, id, (m) => {
+    if (!m.schedule) return m;
+    const { schedule: _drop, ...rest } = m;
+    void _drop;
+    return { ...rest, updatedAt: Date.now() };
+  });
+}
+
+export function markMemberPaid(
+  cluster: SolanaCluster,
+  id: string,
+  timestamp: number = Date.now(),
+): TeamMember | null {
+  return patchMember(cluster, id, (m) => {
+    if (!m.schedule) return m;
+    const next: MemberSchedule = { ...m.schedule, lastPaidAt: timestamp };
+    if (
+      m.schedule.cadence === "test" &&
+      typeof m.schedule.runsRemaining === "number"
+    ) {
+      next.runsRemaining = Math.max(0, m.schedule.runsRemaining - 1);
+    }
+    return { ...m, schedule: next, updatedAt: Date.now() };
+  });
 }
 
 export function teamStorageEvent(): string {
