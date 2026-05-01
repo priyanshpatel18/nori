@@ -307,6 +307,7 @@ function ParsedSummary({
         withdrawSignature: result.payoutSig,
         timestamp: Date.now(),
         batchId: outcome.depositSignature,
+        source: "payroll",
       });
     }
   }, [batch, shieldToken, tokenId, validated, wallet.publicKey]);

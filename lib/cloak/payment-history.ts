@@ -4,6 +4,8 @@ import type { ShieldTokenId } from "./tokens";
 const STORAGE_PREFIX = "cloak:payments:v1";
 const MAX_RECORDS = 200;
 
+export type PaymentSource = "pay" | "payroll" | "recurring";
+
 export type PaymentRecord = {
   id: string;
   cluster: SolanaCluster;
@@ -20,7 +22,69 @@ export type PaymentRecord = {
   // When set, this row is one recipient of a payroll batch. All rows from the
   // same run share this id (the batch's deposit signature).
   batchId?: string;
+  // Where this payment originated. Older records persisted before this field
+  // existed are inferred via inferPaymentSource().
+  source?: PaymentSource;
 };
+
+/** Infer the source of a record that pre-dates the explicit `source` field. */
+export function inferPaymentSource(r: PaymentRecord): PaymentSource {
+  if (r.source) return r.source;
+  return r.batchId ? "payroll" : "pay";
+}
+
+/**
+ * Backfill `source` and trim numeric fields on records persisted before the
+ * explicit `source` field existed. Idempotent — returns the number of rows
+ * touched and only writes (and notifies subscribers) when something changed.
+ */
+export function migratePaymentRecords(
+  sender: string | null | undefined,
+  cluster: SolanaCluster,
+): number {
+  if (!isBrowser() || !sender) return 0;
+  const current = loadPayments(sender, cluster);
+  if (current.length === 0) return 0;
+
+  let changed = 0;
+  const next = current.map((r) => {
+    const patched: PaymentRecord = { ...r };
+    let touched = false;
+
+    if (!patched.source) {
+      patched.source = patched.batchId ? "payroll" : "pay";
+      touched = true;
+    }
+
+    // Older writers occasionally persisted these as numbers. Coerce to string
+    // so downstream BigInt parsing doesn't throw on render.
+    if (typeof patched.amountRaw !== "string") {
+      patched.amountRaw = String(patched.amountRaw);
+      touched = true;
+    }
+    if (typeof patched.netRaw !== "string") {
+      patched.netRaw = String(patched.netRaw);
+      touched = true;
+    }
+
+    if (touched) changed += 1;
+    return patched;
+  });
+
+  if (changed === 0) return 0;
+
+  try {
+    window.localStorage.setItem(key(sender, cluster), JSON.stringify(next));
+    window.dispatchEvent(
+      new CustomEvent("cloak:payments-updated", {
+        detail: { sender, cluster },
+      }),
+    );
+  } catch {
+    // ignore quota / serialization errors
+  }
+  return changed;
+}
 
 function key(sender: string, cluster: SolanaCluster): string {
   return `${STORAGE_PREFIX}:${cluster}:${sender}`;

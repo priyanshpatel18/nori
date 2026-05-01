@@ -244,6 +244,7 @@ export default function PayPage() {
                   depositSignature: result.depositSignature,
                   withdrawSignature: result.withdrawSignature,
                   timestamp: Date.now(),
+                  source: "pay",
                 });
               }
             } catch {

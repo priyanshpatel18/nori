@@ -4,6 +4,7 @@ import {
   Add01Icon,
   Alert02Icon,
   Calendar03Icon,
+  CheckmarkCircle01Icon,
   Delete02Icon,
   PencilEdit02Icon,
   ReloadIcon,
@@ -307,6 +308,9 @@ function MemberRow({
         <p className="mt-0.5 truncate font-mono text-[12px] text-muted-foreground">
           {shortAddr(member.wallet)}
         </p>
+        {member.schedule?.lastPaidAt && (
+          <PaidIndicator lastPaidAt={member.schedule.lastPaidAt} />
+        )}
         {member.note && (
           <p className="mt-1 truncate text-[12px] text-muted-foreground/80">
             {member.note}
@@ -395,6 +399,45 @@ function formatRelativeDate(ms: number): string {
     month: "short",
     day: "numeric",
   });
+}
+
+function formatRelativePast(ms: number, now: number = Date.now()): string {
+  const delta = Math.max(0, now - ms);
+  const sec = Math.floor(delta / 1000);
+  if (sec < 5) return "just now";
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  return formatRelativeDate(ms);
+}
+
+function PaidIndicator({ lastPaidAt }: { lastPaidAt: number }) {
+  // Tick every 15s while the row is mounted so "12s ago" → "27s ago" updates
+  // without re-rendering the whole team list each second.
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const recent = now - lastPaidAt < 60_000;
+  return (
+    <p
+      className={cn(
+        "mt-1 flex items-center gap-1 text-[11.5px]",
+        recent ? "text-primary" : "text-muted-foreground/80",
+      )}
+    >
+      <HugeiconsIcon
+        icon={CheckmarkCircle01Icon}
+        size={10}
+        strokeWidth={2.4}
+      />
+      Paid {formatRelativePast(lastPaidAt, now)}
+    </p>
+  );
 }
 
 function Avatar({ name }: { name: string }) {

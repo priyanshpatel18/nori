@@ -77,12 +77,17 @@ function DueRunBody({
   const wallet = useWallet();
   const batch = useBatchPayroll();
 
+  // Snapshot the groups at open time. Once a payment succeeds, markMemberPaid
+  // updates lastPaidAt and the upstream `groups` prop drops that member from
+  // the due list, which would otherwise empty the dialog mid-run.
+  const [snapshot] = React.useState<DueGroup[]>(() => groups);
+
   const [activeMint, setActiveMint] = React.useState<string | null>(null);
   const [outcomes, setOutcomes] = React.useState<Record<string, GroupOutcome>>({});
   const [allRunning, setAllRunning] = React.useState(false);
 
   const isRunning = batch.status === "running" || allRunning;
-  const remainingGroups = groups.filter((g) => !outcomes[g.mint]);
+  const remainingGroups = snapshot.filter((g) => !outcomes[g.mint]);
 
   const runGroup = React.useCallback(async (group: DueGroup) => {
     if (!wallet.publicKey) return;
@@ -147,6 +152,7 @@ function DueRunBody({
         withdrawSignature: result.payoutSig,
         timestamp: Date.now(),
         batchId: outcome.depositSignature,
+        source: "recurring",
       });
     }
 
@@ -167,21 +173,20 @@ function DueRunBody({
     if (!wallet.publicKey) return;
     setAllRunning(true);
     try {
-      // Snapshot the unfinished groups now so the loop isn't influenced by
-      // outcome-state updates between iterations.
-      const pending = groups.filter((g) => !outcomes[g.mint]);
+      const pending = snapshot.filter((g) => !outcomes[g.mint]);
       for (const group of pending) {
         await runGroup(group);
       }
     } finally {
       setAllRunning(false);
     }
-  }, [groups, outcomes, runGroup, wallet.publicKey]);
+  }, [snapshot, outcomes, runGroup, wallet.publicKey]);
 
-  const totalDueRows = groups.reduce((acc, g) => acc + g.members.length, 0);
+  const totalDueRows = snapshot.reduce((acc, g) => acc + g.members.length, 0);
   const remainingCount = remainingGroups.length;
-  const completedCount = groups.length - remainingCount;
+  const completedCount = snapshot.length - remainingCount;
   const showPayAll = remainingCount > 0;
+  const allDone = snapshot.length > 0 && remainingCount === 0;
 
   return (
     <>
@@ -217,7 +222,7 @@ function DueRunBody({
           >
             {allRunning
               ? activeMint
-                ? `Paying ${tokenLabelFor(groups, activeMint)}…`
+                ? `Paying ${tokenLabelFor(snapshot, activeMint)}…`
                 : "Running…"
               : "Pay all"}
             {!allRunning && (
@@ -231,8 +236,10 @@ function DueRunBody({
         </div>
       )}
 
+      {allDone && <RunSummary snapshot={snapshot} outcomes={outcomes} />}
+
       <div className="flex flex-col gap-4">
-        {groups.map((group) => {
+        {snapshot.map((group) => {
           const outcome = outcomes[group.mint];
           const running = activeMint === group.mint && isRunning;
           return (
@@ -264,6 +271,92 @@ function DueRunBody({
 
 function tokenLabelFor(groups: DueGroup[], mint: string): string {
   return groups.find((g) => g.mint === mint)?.token.id ?? "";
+}
+
+function RunSummary({
+  snapshot,
+  outcomes,
+}: {
+  snapshot: DueGroup[];
+  outcomes: Record<string, GroupOutcome>;
+}) {
+  let confirmed = 0;
+  let failed = 0;
+  let total = 0;
+  const perToken: { tokenId: string; decimals: number; net: bigint }[] = [];
+
+  for (const group of snapshot) {
+    const outcome = outcomes[group.mint];
+    if (!outcome) continue;
+    confirmed += outcome.confirmed;
+    failed += outcome.failed;
+    total += outcome.total;
+
+    let net = 0n;
+    for (const m of group.members) {
+      if (!m.schedule) continue;
+      try {
+        const gross = toBaseUnits(m.schedule.amount, group.token.decimals);
+        const variable = (gross * VARIABLE_FEE_BPS) / 10_000n;
+        const fixed =
+          group.token.id === "SOL" ? FIXED_FEE_LAMPORTS : 0n;
+        const memberNet = gross - variable - fixed;
+        net += memberNet < 0n ? 0n : memberNet;
+      } catch {
+        // ignore per-member parse errors; the row would have failed validation
+      }
+    }
+    perToken.push({
+      tokenId: group.token.id,
+      decimals: group.token.decimals,
+      net,
+    });
+  }
+
+  const allOk = failed === 0;
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-2 rounded-xl border p-4",
+        allOk
+          ? "border-primary/40 bg-primary/10"
+          : "border-destructive/40 bg-destructive/10",
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className={cn(
+            "grid size-8 shrink-0 place-items-center rounded-full",
+            allOk ? "bg-primary/20 text-primary" : "bg-destructive/20 text-destructive",
+          )}
+        >
+          <HugeiconsIcon
+            icon={allOk ? CheckmarkCircle01Icon : Alert02Icon}
+            size={15}
+            strokeWidth={2.2}
+          />
+        </span>
+        <div className="flex flex-col">
+          <p className="text-[13.5px] font-medium text-foreground">
+            {allOk
+              ? `Paid ${confirmed} recipient${confirmed === 1 ? "" : "s"} privately`
+              : `${confirmed} of ${total} paid · ${failed} failed`}
+          </p>
+          <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+            {perToken
+              .map(
+                (t) =>
+                  `${formatBaseUnits(t.net.toString(), t.decimals)} ${t.tokenId}`,
+              )
+              .join(" · ")}
+            {" "}sent · view receipts in History.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function GroupCard({
