@@ -17,6 +17,8 @@ import Link from "next/link";
 
 import { PageHeader } from "@/components/app-shell/page-header";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
+import { DueBanner } from "@/components/team/due-banner";
+import { DueRunDialog } from "@/components/team/due-run-dialog";
 import { FancyButton } from "@/components/ui/fancy-button";
 import {
   appendPayment,
@@ -44,6 +46,7 @@ import {
 } from "@/lib/payroll/validate";
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanTxUrl } from "@/lib/solana/explorer";
+import { useDueMembers } from "@/lib/team/use-due-members";
 import { cn } from "@/lib/utils";
 
 type ParseState =
@@ -60,6 +63,8 @@ export default function PayrollPage() {
   const [drag, setDrag] = React.useState(false);
   const [parse, setParse] = React.useState<ParseState>({ kind: "idle" });
   const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const due = useDueMembers();
+  const [runOpen, setRunOpen] = React.useState(false);
 
   const handleFile = React.useCallback(async (file: File) => {
     if (!file.name.toLowerCase().endsWith(".csv")) {
@@ -99,6 +104,12 @@ export default function PayrollPage() {
       />
 
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 sm:px-8">
+        <DueBanner
+          total={due.total}
+          groups={due.groups}
+          onRunNow={() => setRunOpen(true)}
+        />
+
         <AnimatePresence mode="wait" initial={false}>
           {showDropzone ? (
             <motion.label
@@ -194,6 +205,12 @@ export default function PayrollPage() {
         </AnimatePresence>
 
       </div>
+
+      <DueRunDialog
+        open={runOpen}
+        groups={due.groups}
+        onClose={() => setRunOpen(false)}
+      />
     </>
   );
 }

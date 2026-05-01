@@ -16,6 +16,8 @@ import * as React from "react";
 
 import { PageHeader } from "@/components/app-shell/page-header";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
+import { DueBanner } from "@/components/team/due-banner";
+import { DueRunDialog } from "@/components/team/due-run-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -50,6 +52,7 @@ import {
   nextBiweeklyIndexForDow,
   ordinal,
 } from "@/lib/team/schedule";
+import { useDueMembers } from "@/lib/team/use-due-members";
 import { useTeam } from "@/lib/team/use-team";
 import {
   hasErrors,
@@ -105,8 +108,10 @@ type DialogState =
 
 export default function TeamPage() {
   const { members, ready } = useTeam();
+  const due = useDueMembers();
   const [query, setQuery] = React.useState("");
   const [dialog, setDialog] = React.useState<DialogState>({ kind: "closed" });
+  const [runOpen, setRunOpen] = React.useState(false);
 
   const filtered = React.useMemo(() => {
     if (!query) return members;
@@ -146,6 +151,12 @@ export default function TeamPage() {
       />
 
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 sm:px-8">
+        <DueBanner
+          total={due.total}
+          groups={due.groups}
+          onRunNow={() => setRunOpen(true)}
+        />
+
         {ready && members.length > 0 && (
           <div className="sm:max-w-sm sm:self-end">
             <Input
@@ -201,6 +212,12 @@ export default function TeamPage() {
         open={isDeleteOpen}
         member={dialog.kind === "delete" ? dialog.member : undefined}
         onClose={closeDialog}
+      />
+
+      <DueRunDialog
+        open={runOpen}
+        groups={due.groups}
+        onClose={() => setRunOpen(false)}
       />
     </>
   );

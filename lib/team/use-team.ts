@@ -45,12 +45,26 @@ export function useTeam(): { members: TeamMember[]; ready: boolean } {
     return fresh;
   }, []);
 
-  const members = React.useSyncExternalStore(
+  const stored = React.useSyncExternalStore(
     subscribe,
     getSnapshot,
     () => EMPTY,
   );
 
-  const ready = typeof window !== "undefined";
+  // `ready` is driven through useSyncExternalStore so the server snapshot is
+  // false and the client snapshot is true, with React's hydration boundary
+  // handling the swap. Without this, ready would flip during the first client
+  // render and tear the tree (motion mounts, member rows appear) mid-hydrate.
+  const ready = React.useSyncExternalStore(
+    readyNoopSubscribe,
+    readyClientSnapshot,
+    readyServerSnapshot,
+  );
+
+  const members = ready ? stored : EMPTY;
   return { members, ready };
 }
+
+const readyNoopSubscribe = () => () => {};
+const readyClientSnapshot = () => true;
+const readyServerSnapshot = () => false;
