@@ -4,6 +4,7 @@ import {
   ClockIcon,
   DollarSendIcon,
   FileSecurityIcon,
+  UserGroupIcon,
   UserMultipleIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -47,6 +48,12 @@ const NAV: NavItem[] = [
     label: "Payroll",
     description: "Run a roster in one click.",
     icon: UserMultipleIcon,
+  },
+  {
+    href: "/team",
+    label: "Team",
+    description: "Save recipients and recurring schedules.",
+    icon: UserGroupIcon,
   },
   {
     href: "/history",

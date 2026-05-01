@@ -289,6 +289,7 @@ function ParsedSummary({
         depositSignature: outcome.depositSignature,
         withdrawSignature: result.payoutSig,
         timestamp: Date.now(),
+        batchId: outcome.depositSignature,
       });
     }
   }, [batch, shieldToken, tokenId, validated, wallet.publicKey]);

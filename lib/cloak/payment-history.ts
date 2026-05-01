@@ -17,6 +17,9 @@ export type PaymentRecord = {
   depositSignature: string;
   withdrawSignature: string;
   timestamp: number;
+  // When set, this row is one recipient of a payroll batch. All rows from the
+  // same run share this id (the batch's deposit signature).
+  batchId?: string;
 };
 
 function key(sender: string, cluster: SolanaCluster): string {
