@@ -20,6 +20,7 @@ import * as React from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 
 import { PageHeader } from "@/components/app-shell/page-header";
+import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
 import {
   Dialog,
   DialogContent,
@@ -94,6 +95,11 @@ export default function HistoryPage() {
     return counts;
   }, [records]);
 
+  const tokenSummaries = React.useMemo(
+    () => summarizeByToken(records, received),
+    [records, received],
+  );
+
   const groups = React.useMemo(
     () => buildGroups(records, received, filter),
     [records, received, filter],
@@ -144,7 +150,9 @@ export default function HistoryPage() {
         description="Every payment you've sent through Nori. The chain sees a transaction. Only you see what's inside."
       />
 
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 sm:px-8">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6 sm:px-8">
+        <BalanceSummary summaries={tokenSummaries} />
+
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <FilterTabs
             value={filter}
@@ -424,6 +432,189 @@ function FilterTabs({
         );
       })}
     </div>
+  );
+}
+
+type TokenSummary = {
+  mint: string;
+  symbol: string;
+  decimals: number;
+  inflow: bigint;
+  outflow: bigint;
+  count: number;
+};
+
+function summarizeByToken(
+  records: PaymentRecord[],
+  received: ReceivedTransaction[],
+): TokenSummary[] {
+  const map = new Map<string, TokenSummary>();
+
+  const upsert = (
+    mint: string,
+    symbol: string,
+    decimals: number,
+  ): TokenSummary => {
+    const existing = map.get(mint);
+    if (existing) {
+      // Prefer the first non-empty symbol we've seen (scan rows sometimes
+      // ship empty symbols). Decimals should be stable per mint.
+      if (!existing.symbol && symbol) existing.symbol = symbol;
+      return existing;
+    }
+    const entry: TokenSummary = {
+      mint,
+      symbol,
+      decimals,
+      inflow: 0n,
+      outflow: 0n,
+      count: 0,
+    };
+    map.set(mint, entry);
+    return entry;
+  };
+
+  for (const r of records) {
+    if (!r.mint) continue;
+    const e = upsert(r.mint, r.token, r.decimals);
+    try {
+      // amountRaw is gross — what actually left the wallet — so use it
+      // (not netRaw) for the user's running outflow. The fee is the
+      // difference between the two.
+      e.outflow += BigInt(r.amountRaw);
+    } catch {
+      // ignore malformed legacy records
+    }
+    e.count += 1;
+  }
+
+  for (const tx of received) {
+    // For swaps, attribute the inflow to the output mint the user actually
+    // received. For deposits / withdraws / transfers, fall back to `mint`.
+    const mint = (tx.outputMint ?? tx.mint ?? "").trim();
+    if (!mint) continue;
+    const symbol = (tx.outputSymbol ?? tx.symbol ?? "").trim();
+    const decimals = tx.decimals ?? 9;
+    const e = upsert(mint, symbol, decimals);
+    try {
+      e.inflow += BigInt(String(tx.netAmount));
+    } catch {
+      // ignore
+    }
+    e.count += 1;
+  }
+
+  return Array.from(map.values()).sort((a, b) => {
+    // Largest absolute net first, then by tx count.
+    const netA = a.inflow - a.outflow;
+    const netB = b.inflow - b.outflow;
+    const absA = netA < 0n ? -netA : netA;
+    const absB = netB < 0n ? -netB : netB;
+    if (absA !== absB) return absB > absA ? 1 : -1;
+    return b.count - a.count;
+  });
+}
+
+function BalanceSummary({ summaries }: { summaries: TokenSummary[] }) {
+  if (summaries.length === 0) return null;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+      className="flex flex-wrap items-center gap-1.5"
+    >
+      {summaries.map((s) => {
+        const net = s.inflow - s.outflow;
+        const netSign = net > 0n ? "+" : net < 0n ? "−" : "";
+        const netAbs = net < 0n ? -net : net;
+        const netStr = formatBaseUnits(netAbs.toString(), s.decimals);
+        const inStr = formatBaseUnits(s.inflow.toString(), s.decimals);
+        const outStr = formatBaseUnits(s.outflow.toString(), s.decimals);
+        const symbolLabel = s.symbol || shortMint(s.mint);
+        return (
+          <span
+            key={s.mint}
+            title={`In ${inStr} · Out ${outStr} · ${s.count} tx${s.count === 1 ? "" : "s"}`}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/40 py-1 pl-1 pr-2.5 text-[11.5px] transition-colors hover:border-primary/30 hover:bg-card/70"
+          >
+            <TokenLogo
+              mint={s.mint}
+              symbol={s.symbol}
+              className="size-4 shrink-0"
+            />
+            <span className="font-mono font-medium uppercase tracking-[0.14em] text-foreground/80">
+              {symbolLabel}
+            </span>
+            <span
+              className={cn(
+                "font-mono tabular-nums",
+                net > 0n
+                  ? "text-emerald-400"
+                  : net < 0n
+                    ? "text-foreground"
+                    : "text-muted-foreground",
+              )}
+            >
+              {netSign}
+              {netStr}
+            </span>
+            <span className="font-mono text-[10px] text-muted-foreground/70">
+              {s.count}
+            </span>
+          </span>
+        );
+      })}
+    </motion.div>
+  );
+}
+
+function shortMint(mint: string): string {
+  if (mint.length <= 8) return mint;
+  return `${mint.slice(0, 4)}…${mint.slice(-4)}`;
+}
+
+// Bundled token logos. Cloak's mock-USDC on devnet shares the USDC logo so
+// the dashboard reads the same across clusters.
+const NATIVE_SOL = "So11111111111111111111111111111111111111112";
+const USDC_MINTS = new Set<string>([
+  "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // mainnet USDC
+  "61ro7AExqfk4dZYoCyRzTahahCC2TdUUZ4M5epMPunJf", // devnet mock USDC
+]);
+const USDT_MINTS = new Set<string>([
+  "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", // mainnet USDT
+]);
+
+function TokenLogo({
+  mint,
+  symbol,
+  className,
+}: {
+  mint: string;
+  symbol: string;
+  className?: string;
+}) {
+  if (mint === NATIVE_SOL || symbol.toUpperCase() === "SOL") {
+    return <SolanaLogo className={className} />;
+  }
+  if (USDC_MINTS.has(mint) || symbol.toUpperCase() === "USDC") {
+    return <UsdcLogo className={className} />;
+  }
+  if (USDT_MINTS.has(mint) || symbol.toUpperCase() === "USDT") {
+    return <UsdtLogo className={className} />;
+  }
+  // Unknown token: fall back to the symbol's first letter on a neutral disc.
+  const letter = (symbol || mint || "?").charAt(0).toUpperCase();
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "grid place-items-center rounded-full border border-border bg-background/60 font-mono text-[9px] font-semibold uppercase text-foreground/70",
+        className,
+      )}
+    >
+      {letter}
+    </span>
   );
 }
 
