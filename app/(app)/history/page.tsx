@@ -1,12 +1,15 @@
 "use client";
 
 import {
+  ArrowDown01Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
   ArrowUp01Icon,
   Calendar03Icon,
   Coins01Icon,
   EyeIcon,
+  Loading03Icon,
+  Refresh01Icon,
   Search01Icon,
   UserMultipleIcon,
 } from "@hugeicons/core-free-icons";
@@ -24,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import {
   formatBaseUnits,
@@ -32,22 +36,26 @@ import {
   type PaymentRecord,
   type PaymentSource,
 } from "@/lib/cloak/payment-history";
+import type { ReceivedTransaction } from "@/lib/cloak/scanned-history";
 import { usePaymentHistory } from "@/lib/cloak/use-payment-history";
+import { useScannedHistory } from "@/lib/cloak/use-scanned-history";
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanTxUrl } from "@/lib/solana/explorer";
 import { cn } from "@/lib/utils";
 
 type Group =
   | { kind: "single"; record: PaymentRecord }
-  | { kind: "batch"; batchId: string; records: PaymentRecord[] };
+  | { kind: "batch"; batchId: string; records: PaymentRecord[] }
+  | { kind: "received"; tx: ReceivedTransaction };
 
-type FilterId = "all" | PaymentSource;
+type FilterId = "all" | PaymentSource | "received";
 
 const FILTERS: { id: FilterId; label: string }[] = [
   { id: "all", label: "All" },
   { id: "pay", label: "Pay" },
   { id: "payroll", label: "Payroll" },
   { id: "recurring", label: "Recurring" },
+  { id: "received", label: "Received" },
 ];
 
 const PAGE_SIZE = 5;
@@ -57,6 +65,13 @@ export default function HistoryPage() {
   const [filter, setFilter] = React.useState<FilterId>("all");
   const [page, setPage] = React.useState(0);
   const { records, ready } = usePaymentHistory();
+  const {
+    received,
+    status: scanStatus,
+    progress: scanProgress,
+    error: scanError,
+    sync: runScan,
+  } = useScannedHistory();
   const wallet = useWallet();
   const sender = wallet.publicKey?.toBase58() ?? null;
 
@@ -79,14 +94,9 @@ export default function HistoryPage() {
     return counts;
   }, [records]);
 
-  const sourceFiltered = React.useMemo(() => {
-    if (filter === "all") return records;
-    return records.filter((r) => inferPaymentSource(r) === filter);
-  }, [records, filter]);
-
   const groups = React.useMemo(
-    () => groupRecords(sourceFiltered),
-    [sourceFiltered],
+    () => buildGroups(records, received, filter),
+    [records, received, filter],
   );
 
   const filteredGroups = React.useMemo(() => {
@@ -94,13 +104,29 @@ export default function HistoryPage() {
     const q = query.toLowerCase();
     return groups.filter((g) => {
       if (g.kind === "single") return matches(g.record, q);
-      if (g.batchId.toLowerCase().includes(q)) return true;
-      return g.records.some((r) => matches(r, q));
+      if (g.kind === "batch") {
+        if (g.batchId.toLowerCase().includes(q)) return true;
+        return g.records.some((r) => matches(r, q));
+      }
+      return matchesReceived(g.tx, q);
     });
   }, [groups, query]);
 
+  const visibleSourceCount =
+    filter === "received"
+      ? received.length
+      : filter === "all"
+        ? records.length + received.length
+        : records.filter((r) => inferPaymentSource(r) === filter).length;
+
   const emptyForFilter =
-    ready && records.length > 0 && sourceFiltered.length === 0;
+    ready && records.length + received.length > 0 && visibleSourceCount === 0;
+
+  const handleSync = React.useCallback(() => {
+    runScan().catch(() => {
+      // Error already surfaced via scanError.
+    });
+  }, [runScan]);
 
   const pageCount = Math.max(1, Math.ceil(filteredGroups.length / PAGE_SIZE));
   // Clamp during render in case items disappeared (e.g., search narrowed),
@@ -124,32 +150,74 @@ export default function HistoryPage() {
             value={filter}
             onChange={setFilter}
             counts={sourceCounts}
+            receivedCount={received.length}
           />
-          <div className="sm:max-w-sm">
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search recipient or signature"
-              leadingIcon={
-                <HugeiconsIcon
-                  icon={Search01Icon}
-                  size={14}
-                  strokeWidth={1.8}
-                />
+          <div className="flex items-center gap-2 sm:max-w-md">
+            <div className="flex-1 sm:min-w-[16rem]">
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search recipient or signature"
+                leadingIcon={
+                  <HugeiconsIcon
+                    icon={Search01Icon}
+                    size={14}
+                    strokeWidth={1.8}
+                  />
+                }
+              />
+            </div>
+            <FancyButton
+              type="button"
+              variant="neutral"
+              size="md"
+              onClick={handleSync}
+              disabled={scanStatus === "scanning" || !sender}
+              title={
+                sender
+                  ? "Scan the chain for payments received by this wallet"
+                  : "Connect your wallet to sync received payments"
               }
-            />
+            >
+              <HugeiconsIcon
+                icon={scanStatus === "scanning" ? Loading03Icon : Refresh01Icon}
+                size={14}
+                strokeWidth={1.8}
+                className={cn(
+                  scanStatus === "scanning" && "animate-spin",
+                )}
+              />
+              <span className="text-[12.5px]">
+                {scanStatus === "scanning" ? "Syncing" : "Sync received"}
+              </span>
+            </FancyButton>
           </div>
         </div>
+
+        {scanStatus === "scanning" && scanProgress && (
+          <p className="text-[11.5px] text-muted-foreground">{scanProgress}</p>
+        )}
+        {scanStatus === "error" && scanError && (
+          <p className="text-[11.5px] text-destructive">
+            Sync failed: {scanError.message}
+          </p>
+        )}
 
         <ul className="flex flex-col gap-2">
           {pagedGroups.map((g, i) =>
             g.kind === "single" ? (
               <SingleRow key={g.record.id} tx={g.record} index={i} />
-            ) : (
+            ) : g.kind === "batch" ? (
               <BatchRow
                 key={g.batchId}
                 batchId={g.batchId}
                 rows={g.records}
+                index={i}
+              />
+            ) : (
+              <ReceivedRow
+                key={`recv-${g.tx.signature ?? g.tx.commitment}`}
+                tx={g.tx}
                 index={i}
               />
             ),
@@ -169,15 +237,15 @@ export default function HistoryPage() {
                 className="text-muted-foreground"
               />
               <p className="text-[13.5px] text-foreground">
-                {records.length === 0
+                {records.length + received.length === 0
                   ? "No private payments yet"
                   : emptyForFilter
                     ? `No ${filterLabel(filter).toLowerCase()} payments yet`
                     : "No matches"}
               </p>
               <p className="text-[12px] text-muted-foreground">
-                {records.length === 0
-                  ? "Your sent payments will appear here after you make one on Pay."
+                {records.length + received.length === 0
+                  ? "Your sent payments will appear here after you make one on Pay. Click Sync received to scan for incoming payments."
                   : emptyForFilter
                     ? emptyHintFor(filter)
                     : "Try a different filter or clear your search."}
@@ -287,6 +355,8 @@ function emptyHintFor(id: FilterId): string {
       return "CSV roster runs from /payroll land here.";
     case "recurring":
       return "Scheduled team payments land here once they run.";
+    case "received":
+      return "Click Sync received to scan the chain for payments to this wallet.";
     default:
       return "Try a different filter or clear your search.";
   }
@@ -296,15 +366,19 @@ function FilterTabs({
   value,
   onChange,
   counts,
+  receivedCount,
 }: {
   value: FilterId;
   onChange: (id: FilterId) => void;
   counts: { pay: number; payroll: number; recurring: number };
+  receivedCount: number;
 }) {
-  const totalAll = counts.pay + counts.payroll + counts.recurring;
+  const totalAll =
+    counts.pay + counts.payroll + counts.recurring + receivedCount;
 
   const countFor = (id: FilterId): number => {
     if (id === "all") return totalAll;
+    if (id === "received") return receivedCount;
     return counts[id];
   };
 
@@ -353,7 +427,68 @@ function FilterTabs({
   );
 }
 
-function groupRecords(records: PaymentRecord[]): Group[] {
+function DirChip({ direction }: { direction: "in" | "out" }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-1.5 py-px font-mono text-[9.5px] font-medium uppercase leading-none tracking-[0.16em]",
+        direction === "in"
+          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+          : "border-border bg-background/60 text-foreground/70",
+      )}
+    >
+      {direction === "in" ? "In" : "Out"}
+    </span>
+  );
+}
+
+function TypeChip({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center rounded-full border border-border bg-background/40 px-1.5 py-px font-mono text-[9.5px] font-medium uppercase leading-none tracking-[0.16em] text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
+function txTypeLabel(txType: string): string {
+  switch (txType) {
+    case "deposit":
+      return "Deposit";
+    case "withdraw":
+      return "Withdraw";
+    case "transfer":
+      return "Transfer";
+    case "swap":
+      return "Swap";
+    default:
+      return "Unknown";
+  }
+}
+
+function buildGroups(
+  records: PaymentRecord[],
+  received: ReceivedTransaction[],
+  filter: FilterId,
+): Group[] {
+  const sourceFiltered =
+    filter === "all" || filter === "received"
+      ? records
+      : records.filter((r) => inferPaymentSource(r) === filter);
+
+  const outgoingGroups: Group[] =
+    filter === "received" ? [] : groupOutgoing(sourceFiltered);
+
+  const receivedGroups: Group[] =
+    filter === "all" || filter === "received"
+      ? received.map((tx) => ({ kind: "received", tx }) satisfies Group)
+      : [];
+
+  const merged = [...outgoingGroups, ...receivedGroups];
+  merged.sort((a, b) => groupTimestamp(b) - groupTimestamp(a));
+  return merged;
+}
+
+function groupOutgoing(records: PaymentRecord[]): Group[] {
   // Group by deposit signature. Any sig that appears more than once is a
   // payroll batch (one batch deposit, N recipients sharing it). Sig that
   // appears once is a single /pay row. This works for both old records
@@ -382,11 +517,28 @@ function groupRecords(records: PaymentRecord[]): Group[] {
   return groups;
 }
 
+function groupTimestamp(g: Group): number {
+  if (g.kind === "single") return g.record.timestamp;
+  if (g.kind === "received") return g.tx.timestamp;
+  return g.records.reduce(
+    (max, r) => (r.timestamp > max ? r.timestamp : max),
+    0,
+  );
+}
+
 function matches(r: PaymentRecord, q: string): boolean {
   return (
     r.recipient.toLowerCase().includes(q) ||
     r.depositSignature.toLowerCase().includes(q) ||
     r.withdrawSignature.toLowerCase().includes(q)
+  );
+}
+
+function matchesReceived(tx: ReceivedTransaction, q: string): boolean {
+  return (
+    tx.recipient.toLowerCase().includes(q) ||
+    (tx.signature?.toLowerCase().includes(q) ?? false) ||
+    tx.commitment.toLowerCase().includes(q)
   );
 }
 
@@ -421,9 +573,11 @@ function SingleRow({ tx, index }: { tx: PaymentRecord; index: number }) {
             {sigShort}
           </span>
         </div>
-        <p className="text-[12px] text-muted-foreground">
-          {dateLabel} · Sent privately
-        </p>
+        <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+          <span>{dateLabel}</span>
+          <DirChip direction="out" />
+          <TypeChip>Pay</TypeChip>
+        </div>
       </div>
 
       <div className="flex items-center gap-4">
@@ -444,6 +598,81 @@ function SingleRow({ tx, index }: { tx: PaymentRecord; index: number }) {
         >
           <HugeiconsIcon icon={EyeIcon} size={15} strokeWidth={1.8} />
         </a>
+      </div>
+    </motion.li>
+  );
+}
+
+function ReceivedRow({
+  tx,
+  index,
+}: {
+  tx: ReceivedTransaction;
+  index: number;
+}) {
+  const recipientShort = `${tx.recipient.slice(0, 4)}…${tx.recipient.slice(-4)}`;
+  const sigShort = tx.signature
+    ? `${tx.signature.slice(0, 4)}…${tx.signature.slice(-4)}`
+    : null;
+  const decimals = tx.decimals ?? 9;
+  const symbol = tx.symbol ?? "";
+  const formattedNet = formatBaseUnits(String(tx.netAmount), decimals);
+  const dateLabel = formatDate(tx.timestamp);
+  const explorerUrl = tx.signature ? solscanTxUrl(tx.signature) : null;
+
+  return (
+    <motion.li
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        delay: 0.05 + Math.min(index, 8) * 0.04,
+        duration: 0.28,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+      className="group flex items-center gap-4 rounded-xl border border-border bg-card/40 px-4 py-3.5 transition-colors hover:border-primary/30 hover:bg-card/70"
+    >
+      <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+        <HugeiconsIcon icon={ArrowDown01Icon} size={14} strokeWidth={2} />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate font-mono text-[13px] text-foreground">
+            {recipientShort}
+          </p>
+          {sigShort && (
+            <span className="hidden font-mono text-[10.5px] text-muted-foreground sm:inline">
+              {sigShort}
+            </span>
+          )}
+        </div>
+        <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+          <span>{dateLabel}</span>
+          <DirChip direction="in" />
+          <TypeChip>{txTypeLabel(tx.txType)}</TypeChip>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className="text-right">
+          <p className="font-mono text-[13.5px] text-emerald-400">
+            +{formattedNet}{" "}
+            <span className="text-muted-foreground">{symbol}</span>
+          </p>
+          <p className="text-[11px] text-muted-foreground">Settled</p>
+        </div>
+        {explorerUrl && (
+          <a
+            href={explorerUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-muted-foreground transition-colors hover:text-primary"
+            aria-label="Open transaction on Solscan"
+            title="Open transaction on Solscan"
+          >
+            <HugeiconsIcon icon={EyeIcon} size={15} strokeWidth={1.8} />
+          </a>
+        )}
       </div>
     </motion.li>
   );
@@ -519,9 +748,14 @@ function BatchRow({
                 {sigShort}
               </span>
             </div>
-            <p className="text-[12px] text-muted-foreground">
-              {dateLabel} · Show recipients
-            </p>
+            <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+              <span>{dateLabel}</span>
+              <DirChip direction="out" />
+              <TypeChip>{batchLabel}</TypeChip>
+              <span className="text-muted-foreground/70">
+                · Show recipients
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
