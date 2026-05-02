@@ -7,6 +7,7 @@ import * as React from "react";
 import { solanaConfig } from "@/lib/solana/config";
 
 import {
+  clearScan,
   isScanStale,
   loadScan,
   mergeReports,
@@ -26,6 +27,8 @@ export type UseScannedHistory = {
   error: Error | null;
   /** Run (or re-run) a scan. Pure read — no wallet popup. */
   sync: () => Promise<StoredScan>;
+  /** Drop the persisted cache and re-scan from chain head. */
+  reset: () => Promise<StoredScan | null>;
 };
 
 // Re-scan in the background if the cached report is older than this. The
@@ -167,12 +170,19 @@ export function useScannedHistory(): UseScannedHistory {
     });
   }, [sender, sync]);
 
+  const reset = React.useCallback(async () => {
+    if (!sender) return null;
+    clearScan(sender, solanaConfig.cluster);
+    autoSyncedFor.current = null;
+    return sync();
+  }, [sender, sync]);
+
   const received = React.useMemo(
     () => selectReceivedTransactions(scan?.report),
     [scan],
   );
 
-  return { scan, received, status, progress, error, sync };
+  return { scan, received, status, progress, error, sync, reset };
 }
 
 async function safeReadError(res: Response): Promise<string> {

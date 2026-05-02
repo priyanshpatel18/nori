@@ -21,6 +21,8 @@ import { useWallet } from "@solana/wallet-adapter-react";
 
 import { PageHeader } from "@/components/app-shell/page-header";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -28,8 +30,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   formatBaseUnits,
   inferPaymentSource,
@@ -37,9 +39,15 @@ import {
   type PaymentRecord,
   type PaymentSource,
 } from "@/lib/cloak/payment-history";
-import type { ReceivedTransaction } from "@/lib/cloak/scanned-history";
+import type {
+  ReceivedTransaction,
+  StoredScan,
+} from "@/lib/cloak/scanned-history";
 import { usePaymentHistory } from "@/lib/cloak/use-payment-history";
-import { useScannedHistory } from "@/lib/cloak/use-scanned-history";
+import {
+  useScannedHistory,
+  type ScanStatus,
+} from "@/lib/cloak/use-scanned-history";
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanTxUrl } from "@/lib/solana/explorer";
 import { cn } from "@/lib/utils";
@@ -67,12 +75,16 @@ export default function HistoryPage() {
   const [page, setPage] = React.useState(0);
   const { records, ready } = usePaymentHistory();
   const {
+    scan,
     received,
     status: scanStatus,
     progress: scanProgress,
     error: scanError,
     sync: runScan,
+    reset: resetScan,
   } = useScannedHistory();
+  const [fromDate, setFromDate] = React.useState<string>("");
+  const [toDate, setToDate] = React.useState<string>("");
   const wallet = useWallet();
   const sender = wallet.publicKey?.toBase58() ?? null;
 
@@ -87,7 +99,22 @@ export default function HistoryPage() {
   // Reset to first page whenever the visible result set changes shape.
   React.useEffect(() => {
     setPage(0);
-  }, [filter, query]);
+  }, [filter, query, fromDate, toDate]);
+
+  // Parse the date inputs once per render. `toDate` is treated as
+  // inclusive — add 24h so the end-of-day boundary works as users expect.
+  const fromMs = React.useMemo(() => {
+    if (!fromDate) return Number.NEGATIVE_INFINITY;
+    const t = Date.parse(fromDate);
+    return Number.isFinite(t) ? t : Number.NEGATIVE_INFINITY;
+  }, [fromDate]);
+  const toMs = React.useMemo(() => {
+    if (!toDate) return Number.POSITIVE_INFINITY;
+    const t = Date.parse(toDate);
+    return Number.isFinite(t) ? t + 86_400_000 : Number.POSITIVE_INFINITY;
+  }, [toDate]);
+  const dateActive =
+    fromMs !== Number.NEGATIVE_INFINITY || toMs !== Number.POSITIVE_INFINITY;
 
   const sourceCounts = React.useMemo(() => {
     const counts = { pay: 0, payroll: 0, recurring: 0 };
@@ -106,9 +133,11 @@ export default function HistoryPage() {
   );
 
   const filteredGroups = React.useMemo(() => {
-    if (!query) return groups;
-    const q = query.toLowerCase();
+    const q = query.trim().toLowerCase();
     return groups.filter((g) => {
+      const ts = groupTimestamp(g);
+      if (ts < fromMs || ts >= toMs) return false;
+      if (!q) return true;
       if (g.kind === "single") return matches(g.record, q);
       if (g.kind === "batch") {
         if (g.batchId.toLowerCase().includes(q)) return true;
@@ -116,7 +145,7 @@ export default function HistoryPage() {
       }
       return matchesReceived(g.tx, q);
     });
-  }, [groups, query]);
+  }, [groups, query, fromMs, toMs]);
 
   const visibleSourceCount =
     filter === "received"
@@ -133,6 +162,17 @@ export default function HistoryPage() {
       // Error already surfaced via scanError.
     });
   }, [runScan]);
+
+  const handleReset = React.useCallback(() => {
+    resetScan().catch(() => {
+      // Error already surfaced via scanError.
+    });
+  }, [resetScan]);
+
+  const clearDateRange = React.useCallback(() => {
+    setFromDate("");
+    setToDate("");
+  }, []);
 
   const pageCount = Math.max(1, Math.ceil(filteredGroups.length / PAGE_SIZE));
   // Clamp during render in case items disappeared (e.g., search narrowed),
@@ -175,10 +215,10 @@ export default function HistoryPage() {
                 }
               />
             </div>
-            <FancyButton
+            <Button
               type="button"
-              variant="neutral"
-              size="md"
+              variant="outline"
+              size="default"
               onClick={handleSync}
               disabled={scanStatus === "scanning" || !sender}
               title={
@@ -191,25 +231,29 @@ export default function HistoryPage() {
                 icon={scanStatus === "scanning" ? Loading03Icon : Refresh01Icon}
                 size={14}
                 strokeWidth={1.8}
-                className={cn(
-                  scanStatus === "scanning" && "animate-spin",
-                )}
+                className={cn(scanStatus === "scanning" && "animate-spin")}
               />
-              <span className="text-[12.5px]">
-                {scanStatus === "scanning" ? "Syncing" : "Sync received"}
-              </span>
-            </FancyButton>
+              {scanStatus === "scanning" ? "Syncing" : "Sync received"}
+            </Button>
           </div>
         </div>
 
-        {scanStatus === "scanning" && scanProgress && (
-          <p className="text-[11.5px] text-muted-foreground">{scanProgress}</p>
-        )}
-        {scanStatus === "error" && scanError && (
-          <p className="text-[11.5px] text-destructive">
-            Sync failed: {scanError.message}
-          </p>
-        )}
+        <DateRangeBar
+          from={fromDate}
+          to={toDate}
+          onFromChange={setFromDate}
+          onToChange={setToDate}
+          onClear={clearDateRange}
+          active={dateActive}
+        />
+
+        <ScanStatusBar
+          scan={scan}
+          status={scanStatus}
+          progress={scanProgress}
+          error={scanError}
+          onReset={handleReset}
+        />
 
         <ul className="flex flex-col gap-2">
           {pagedGroups.map((g, i) =>
@@ -249,14 +293,18 @@ export default function HistoryPage() {
                   ? "No private payments yet"
                   : emptyForFilter
                     ? `No ${filterLabel(filter).toLowerCase()} payments yet`
-                    : "No matches"}
+                    : dateActive
+                      ? "No payments in this date range"
+                      : "No matches"}
               </p>
               <p className="text-[12px] text-muted-foreground">
                 {records.length + received.length === 0
                   ? "Your sent payments will appear here after you make one on Pay. Click Sync received to scan for incoming payments."
                   : emptyForFilter
                     ? emptyHintFor(filter)
-                    : "Try a different filter or clear your search."}
+                    : dateActive
+                      ? "Widen the date range or clear it to see more results."
+                      : "Try a different filter or clear your search."}
               </p>
             </motion.li>
           )}
@@ -307,45 +355,29 @@ function Pagination({
         of <span className="font-mono text-foreground/80">{total}</span>
       </p>
       <div className="flex items-center gap-1">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="icon-sm"
           onClick={onPrev}
           disabled={atStart}
           aria-label="Previous page"
-          className={cn(
-            "inline-flex size-8 items-center justify-center rounded-lg border border-border bg-card/40 transition-colors",
-            atStart
-              ? "text-muted-foreground/40"
-              : "text-foreground hover:border-primary/30 hover:bg-card/70",
-          )}
         >
-          <HugeiconsIcon
-            icon={ArrowLeft01Icon}
-            size={14}
-            strokeWidth={2}
-          />
-        </button>
+          <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={2} />
+        </Button>
         <span className="px-2 font-mono text-[11.5px] tabular-nums text-muted-foreground">
           {page + 1} / {pageCount}
         </span>
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="icon-sm"
           onClick={onNext}
           disabled={atEnd}
           aria-label="Next page"
-          className={cn(
-            "inline-flex size-8 items-center justify-center rounded-lg border border-border bg-card/40 transition-colors",
-            atEnd
-              ? "text-muted-foreground/40"
-              : "text-foreground hover:border-primary/30 hover:bg-card/70",
-          )}
         >
-          <HugeiconsIcon
-            icon={ArrowRight01Icon}
-            size={14}
-            strokeWidth={2}
-          />
-        </button>
+          <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2} />
+        </Button>
       </div>
     </div>
   );
@@ -391,17 +423,22 @@ function FilterTabs({
   };
 
   return (
-    <div className="flex h-10 items-center gap-1 rounded-xl border border-border bg-input/60 p-1 sm:self-start">
+    <div className="flex h-9 items-center gap-1 rounded-xl border border-border bg-input/60 p-1 sm:self-start">
       {FILTERS.map((f) => {
         const isActive = value === f.id;
         const count = countFor(f.id);
         return (
-          <button
+          <Button
             key={f.id}
             type="button"
+            variant="ghost"
+            size="xs"
             onClick={() => onChange(f.id)}
             className={cn(
-              "relative flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] font-medium transition-colors",
+              // Override the variant defaults: the active indicator is a
+              // motion-animated pill underneath, so we want no hover bg
+              // and a normal-cased label.
+              "relative h-7 rounded-lg px-2.5 text-[12px] font-medium hover:bg-transparent",
               isActive
                 ? "text-foreground"
                 : "text-muted-foreground hover:text-foreground",
@@ -428,11 +465,129 @@ function FilterTabs({
             >
               {count}
             </span>
-          </button>
+          </Button>
         );
       })}
     </div>
   );
+}
+
+function DateRangeBar({
+  from,
+  to,
+  onFromChange,
+  onToChange,
+  onClear,
+  active,
+}: {
+  from: string;
+  to: string;
+  onFromChange: (v: string) => void;
+  onToChange: (v: string) => void;
+  onClear: () => void;
+  active: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Label
+        htmlFor="history-from"
+        className="font-mono text-[11px] uppercase tracking-[0.16em] text-foreground/60"
+      >
+        Range
+      </Label>
+      <Input
+        id="history-from"
+        type="date"
+        value={from}
+        max={to || undefined}
+        onChange={(e) => onFromChange(e.target.value)}
+        aria-label="From date"
+        className="h-9 w-[10.5rem] px-2.5"
+      />
+      <span className="text-[11px] text-muted-foreground/60">→</span>
+      <Input
+        id="history-to"
+        type="date"
+        value={to}
+        min={from || undefined}
+        onChange={(e) => onToChange(e.target.value)}
+        aria-label="To date"
+        className="h-9 w-[10.5rem] px-2.5"
+      />
+      {active && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          onClick={onClear}
+          className="font-mono uppercase tracking-[0.14em]"
+        >
+          Clear
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function ScanStatusBar({
+  scan,
+  status,
+  progress,
+  error,
+  onReset,
+}: {
+  scan: StoredScan | null;
+  status: ScanStatus;
+  progress: string | null;
+  error: Error | null;
+  onReset: () => void;
+}) {
+  if (status === "scanning" && progress) {
+    return (
+      <p className="text-[11.5px] text-muted-foreground">{progress}</p>
+    );
+  }
+  if (status === "error" && error) {
+    return (
+      <p className="text-[11.5px] text-destructive">
+        Sync failed: {error.message}
+      </p>
+    );
+  }
+  if (!scan) return null;
+  const cursor = scan.report.lastSignature
+    ? `${scan.report.lastSignature.slice(0, 4)}…${scan.report.lastSignature.slice(-4)}`
+    : "—";
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+      <span>Synced {formatRelative(scan.scannedAt)}</span>
+      <span className="text-muted-foreground/60">·</span>
+      <span className="font-mono">
+        {scan.report.transactions.length} cached
+      </span>
+      <span className="text-muted-foreground/60">·</span>
+      <span className="font-mono" title="Incremental scan cursor (lastSignature)">
+        cursor {cursor}
+      </span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="xs"
+        onClick={onReset}
+        className="ml-1 font-mono uppercase tracking-[0.14em]"
+      >
+        Reset cache
+      </Button>
+    </div>
+  );
+}
+
+function formatRelative(ms: number): string {
+  const diff = Date.now() - ms;
+  if (diff < 60_000) return "just now";
+  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h ago`;
+  return `${Math.round(diff / 86_400_000)}d ago`;
 }
 
 type TokenSummary = {
@@ -533,10 +688,11 @@ function BalanceSummary({ summaries }: { summaries: TokenSummary[] }) {
         const outStr = formatBaseUnits(s.outflow.toString(), s.decimals);
         const symbolLabel = s.symbol || shortMint(s.mint);
         return (
-          <span
+          <Badge
             key={s.mint}
+            variant="default"
             title={`In ${inStr} · Out ${outStr} · ${s.count} tx${s.count === 1 ? "" : "s"}`}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/40 py-1 pl-1 pr-2.5 text-[11.5px] transition-colors hover:border-primary/30 hover:bg-card/70"
+            className="gap-1.5 py-1 pl-1 pr-2.5 text-[11.5px] tracking-normal normal-case transition-colors hover:border-primary/30 hover:bg-card/70"
           >
             <TokenLogo
               mint={s.mint}
@@ -562,7 +718,7 @@ function BalanceSummary({ summaries }: { summaries: TokenSummary[] }) {
             <span className="font-mono text-[10px] text-muted-foreground/70">
               {s.count}
             </span>
-          </span>
+          </Badge>
         );
       })}
     </motion.div>
@@ -620,24 +776,28 @@ function TokenLogo({
 
 function DirChip({ direction }: { direction: "in" | "out" }) {
   return (
-    <span
+    <Badge
+      variant="outline"
       className={cn(
-        "inline-flex items-center rounded-full border px-1.5 py-px font-mono text-[9.5px] font-medium uppercase leading-none tracking-[0.16em]",
+        "px-1.5 py-px font-mono text-[9.5px] tracking-[0.16em]",
         direction === "in"
           ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
           : "border-border bg-background/60 text-foreground/70",
       )}
     >
       {direction === "in" ? "In" : "Out"}
-    </span>
+    </Badge>
   );
 }
 
 function TypeChip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-border bg-background/40 px-1.5 py-px font-mono text-[9.5px] font-medium uppercase leading-none tracking-[0.16em] text-muted-foreground">
+    <Badge
+      variant="default"
+      className="border-border bg-background/40 px-1.5 py-px font-mono text-[9.5px] tracking-[0.16em] text-muted-foreground"
+    >
       {children}
-    </span>
+    </Badge>
   );
 }
 
@@ -916,10 +1076,13 @@ function BatchRow({
         }}
         className="overflow-hidden rounded-xl border border-border bg-card/40 transition-colors hover:border-primary/30 hover:bg-card/70"
       >
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={() => setOpen(true)}
-          className="group flex w-full items-center gap-4 px-4 py-3.5 text-left"
+          // The whole row is the click target — override variant defaults
+          // (h-9, rounded-4xl, centered, no border) so it fills the card.
+          className="group flex h-auto w-full items-center justify-start gap-4 rounded-none px-4 py-3.5 text-left hover:bg-transparent"
         >
           <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
             <HugeiconsIcon
@@ -958,7 +1121,7 @@ function BatchRow({
               <p className="text-[11px] text-muted-foreground">View</p>
             </div>
           </div>
-        </button>
+        </Button>
       </motion.li>
 
       <Dialog open={open} onOpenChange={setOpen}>
