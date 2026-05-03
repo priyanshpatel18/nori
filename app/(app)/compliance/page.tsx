@@ -54,10 +54,44 @@ const EXPORTS: { name: string; date: string; size: string }[] = [
 export default function CompliancePage() {
   const { records } = usePaymentHistory();
   const { received } = useScannedHistory();
-  const summaries = React.useMemo(
-    () => summarizeByToken(records, received),
-    [records, received],
+
+  // YYYY-MM-DD strings — empty = unbounded. Shared between the issue-key
+  // form (where the auditor's window is picked) and the summary preview
+  // above (so the user sees exactly what the auditor would see).
+  const [fromDate, setFromDate] = React.useState<string>("");
+  const [toDate, setToDate] = React.useState<string>("");
+
+  const fromMs = React.useMemo(() => {
+    if (!fromDate) return Number.NEGATIVE_INFINITY;
+    const t = Date.parse(fromDate);
+    return Number.isFinite(t) ? t : Number.NEGATIVE_INFINITY;
+  }, [fromDate]);
+  const toMs = React.useMemo(() => {
+    if (!toDate) return Number.POSITIVE_INFINITY;
+    const t = Date.parse(toDate);
+    // Treat the picker's "to" as inclusive of that whole day.
+    return Number.isFinite(t) ? t + 86_400_000 : Number.POSITIVE_INFINITY;
+  }, [toDate]);
+  const dateActive =
+    fromMs !== Number.NEGATIVE_INFINITY || toMs !== Number.POSITIVE_INFINITY;
+
+  const filteredRecords = React.useMemo(
+    () => records.filter((r) => r.timestamp >= fromMs && r.timestamp < toMs),
+    [records, fromMs, toMs],
   );
+  const filteredReceived = React.useMemo(
+    () => received.filter((tx) => tx.timestamp >= fromMs && tx.timestamp < toMs),
+    [received, fromMs, toMs],
+  );
+  const summaries = React.useMemo(
+    () => summarizeByToken(filteredRecords, filteredReceived),
+    [filteredRecords, filteredReceived],
+  );
+
+  const clearDateRange = React.useCallback(() => {
+    setFromDate("");
+    setToDate("");
+  }, []);
 
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] w-full flex-col overflow-hidden">
@@ -78,10 +112,22 @@ export default function CompliancePage() {
       </motion.div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 p-4 sm:p-6">
-        <SummaryStats summaries={summaries} />
+        <SummaryStats
+          summaries={summaries}
+          dateActive={dateActive}
+          fromLabel={fromDate}
+          toLabel={toDate}
+        />
 
         <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1.4fr_1fr]">
-          <IssueViewingKey />
+          <IssueViewingKey
+            fromDate={fromDate}
+            toDate={toDate}
+            onFromChange={setFromDate}
+            onToChange={setToDate}
+            onClear={clearDateRange}
+            dateActive={dateActive}
+          />
 
           <div className="flex min-h-0 flex-col gap-3">
             <ActiveKeysCard />
@@ -93,7 +139,21 @@ export default function CompliancePage() {
   );
 }
 
-function IssueViewingKey() {
+function IssueViewingKey({
+  fromDate,
+  toDate,
+  onFromChange,
+  onToChange,
+  onClear,
+  dateActive,
+}: {
+  fromDate: string;
+  toDate: string;
+  onFromChange: (v: string) => void;
+  onToChange: (v: string) => void;
+  onClear: () => void;
+  dateActive: boolean;
+}) {
   return (
     <motion.section
       initial={{ opacity: 0, y: 6 }}
@@ -115,14 +175,44 @@ function IssueViewingKey() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="auditor">Auditor</Label>
-          <Input id="auditor" placeholder="e.g. Trail of Bits" />
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="auditor">Auditor</Label>
+        <Input id="auditor" placeholder="e.g. Trail of Bits" />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="range-from">Date range</Label>
+          {dateActive ? (
+            <button
+              type="button"
+              onClick={onClear}
+              className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Clear
+            </button>
+          ) : null}
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="range">Date range</Label>
-          <Input id="range" placeholder="2026-01-01 to 2026-03-31" />
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+          <Input
+            id="range-from"
+            type="date"
+            value={fromDate}
+            max={toDate || undefined}
+            onChange={(e) => onFromChange(e.target.value)}
+            aria-label="From date"
+          />
+          <span aria-hidden="true" className="text-[11px] text-muted-foreground/70">
+            →
+          </span>
+          <Input
+            id="range-to"
+            type="date"
+            value={toDate}
+            min={fromDate || undefined}
+            onChange={(e) => onToChange(e.target.value)}
+            aria-label="To date"
+          />
         </div>
       </div>
 
@@ -384,7 +474,17 @@ function shortMint(mint: string): string {
   return `${mint.slice(0, 4)}…${mint.slice(-4)}`;
 }
 
-function SummaryStats({ summaries }: { summaries: TokenSummary[] }) {
+function SummaryStats({
+  summaries,
+  dateActive,
+  fromLabel,
+  toLabel,
+}: {
+  summaries: TokenSummary[];
+  dateActive: boolean;
+  fromLabel: string;
+  toLabel: string;
+}) {
   const empty = summaries.length === 0;
   const rows: TokenSummary[] = empty
     ? [
@@ -405,6 +505,9 @@ function SummaryStats({ summaries }: { summaries: TokenSummary[] }) {
   // the current set, otherwise fall back to the first (highest activity) row.
   const active = rows.find((r) => r.mint === activeMint) ?? rows[0];
   const net = active.inflow - active.outflow;
+  const subtitle = dateActive
+    ? `${fromLabel || "earliest"} → ${toLabel || "latest"}`
+    : `${active.count} ${active.count === 1 ? "tx" : "txs"} on this token`;
 
   return (
     <motion.section
@@ -419,8 +522,8 @@ function SummaryStats({ summaries }: { summaries: TokenSummary[] }) {
           <p className="font-mono text-[9.5px] font-medium uppercase tracking-[0.2em] text-primary/80">
             Account summary
           </p>
-          <p className="mt-0.5 text-[12px] text-muted-foreground">
-            {active.count} {active.count === 1 ? "tx" : "txs"} on this token
+          <p className="mt-0.5 truncate text-[12px] text-muted-foreground">
+            {subtitle}
           </p>
         </div>
         {rows.length > 1 ? (
