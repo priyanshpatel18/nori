@@ -1,4 +1,6 @@
-# Nori
+<h1>
+  <img src="public/nori-wordmark.svg" alt="Nori" height="80" />
+</h1>
 
 **Private payroll and payments for Solana.**
 
