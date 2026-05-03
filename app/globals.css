@@ -126,6 +126,53 @@
 }
 
 @layer components {
+  /*
+   * Opt-in scrollbar that matches the brand palette. Apply on any scroll
+   * container that should pick up the styling (transactions list, drawers,
+   * dropdowns) without changing the platform default for the page itself.
+   *
+   * Idle thumb is a low-contrast neutral pill so it disappears against the
+   * card; hover/active fade in the amber accent so the user can find it.
+   */
+  .scrollbar-cloak {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--foreground) 14%, transparent)
+      transparent;
+  }
+
+  .scrollbar-cloak::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-cloak::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-cloak::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklch, var(--foreground) 14%, transparent);
+    background-clip: padding-box;
+    border: 2px solid transparent;
+    border-radius: 9999px;
+    transition: background-color 0.18s ease;
+  }
+
+  .scrollbar-cloak:hover::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklch, var(--foreground) 22%, transparent);
+  }
+
+  .scrollbar-cloak::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklch, var(--primary) 55%, transparent);
+  }
+
+  .scrollbar-cloak::-webkit-scrollbar-thumb:active {
+    background-color: color-mix(in oklch, var(--primary) 80%, transparent);
+  }
+
+  .scrollbar-cloak::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
   /* Solana wallet-adapter-react — styled with the black + amber tokens */
 
   .wallet-adapter-button {

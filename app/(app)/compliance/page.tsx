@@ -3,13 +3,15 @@
 import {
   ArrowRight01Icon,
   ArrowUpRight01Icon,
+  CheckmarkCircle01Icon,
   Copy01Icon,
+  Delete02Icon,
   Download01Icon,
   EyeIcon,
   KeyIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import * as React from "react";
 
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
@@ -34,30 +36,20 @@ import {
 } from "@/lib/cloak/payment-history";
 import type { ReceivedTransaction } from "@/lib/cloak/scanned-history";
 import { usePaymentHistory } from "@/lib/cloak/use-payment-history";
+import { useIssuedKeys } from "@/lib/cloak/use-issued-keys";
 import { useScannedHistory } from "@/lib/cloak/use-scanned-history";
+import {
+  appendKey,
+  deleteKey,
+  formatKeyRange,
+  generateKeyId,
+  keyStatus,
+  revokeKey,
+  type IssuedKey,
+} from "@/lib/cloak/viewing-keys";
+import { solanaConfig } from "@/lib/solana/config";
 import { solscanAddressUrl, solscanTxUrl } from "@/lib/solana/explorer";
 import { cn } from "@/lib/utils";
-
-const KEYS: { id: string; auditor: string; range: string; status: "active" | "revoked" }[] = [
-  {
-    id: "vk_2A8…91Fc",
-    auditor: "Trail of Bits",
-    range: "Jan 1 – Mar 31, 2026",
-    status: "active",
-  },
-  {
-    id: "vk_71D…04Ae",
-    auditor: "Internal · Finance",
-    range: "Q1 2026",
-    status: "active",
-  },
-  {
-    id: "vk_5C0…8b22",
-    auditor: "Withum tax filing",
-    range: "FY 2025",
-    status: "revoked",
-  },
-];
 
 export default function CompliancePage() {
   const { records } = usePaymentHistory();
@@ -122,6 +114,44 @@ export default function CompliancePage() {
       .sort((a, b) => b.timestamp - a.timestamp);
   }, [scan, fromMs, toMs]);
 
+  // Issued viewing keys (live, persisted per wallet/cluster).
+  const { keys: issuedKeys, issuer } = useIssuedKeys();
+
+  const handleIssueKey = React.useCallback(
+    (input: { auditor: string; email: string }): IssuedKey | null => {
+      if (!issuer) return null;
+      const record: IssuedKey = {
+        id: generateKeyId(),
+        cluster: solanaConfig.cluster,
+        issuer,
+        auditor: input.auditor.trim(),
+        fromDate,
+        toDate,
+        email: input.email.trim(),
+        createdAt: Date.now(),
+      };
+      appendKey(issuer, solanaConfig.cluster, record);
+      return record;
+    },
+    [issuer, fromDate, toDate],
+  );
+
+  const handleRevokeKey = React.useCallback(
+    (id: string) => {
+      if (!issuer) return;
+      revokeKey(issuer, solanaConfig.cluster, id);
+    },
+    [issuer],
+  );
+
+  const handleDeleteKey = React.useCallback(
+    (id: string) => {
+      if (!issuer) return;
+      deleteKey(issuer, solanaConfig.cluster, id);
+    },
+    [issuer],
+  );
+
   // Drawer state. We key the selected tx by signature ?? commitment so
   // re-renders of the underlying scan keep the same row open.
   const [selectedKey, setSelectedKey] = React.useState<string | null>(null);
@@ -169,10 +199,17 @@ export default function CompliancePage() {
             onToChange={setToDate}
             onClear={clearDateRange}
             dateActive={dateActive}
+            walletReady={Boolean(issuer)}
+            onIssue={handleIssueKey}
           />
 
           <div className="flex min-h-0 flex-col gap-3">
-            <ActiveKeysCard />
+            <ActiveKeysCard
+              keys={issuedKeys}
+              walletReady={Boolean(issuer)}
+              onRevoke={handleRevokeKey}
+              onDelete={handleDeleteKey}
+            />
             <TransactionsCard
               transactions={inRangeTransactions}
               hasScan={Boolean(scan)}
@@ -202,6 +239,8 @@ function IssueViewingKey({
   onToChange,
   onClear,
   dateActive,
+  walletReady,
+  onIssue,
 }: {
   fromDate: string;
   toDate: string;
@@ -209,90 +248,185 @@ function IssueViewingKey({
   onToChange: (v: string) => void;
   onClear: () => void;
   dateActive: boolean;
+  walletReady: boolean;
+  onIssue: (input: { auditor: string; email: string }) => IssuedKey | null;
 }) {
+  const [auditor, setAuditor] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [justIssued, setJustIssued] = React.useState<IssuedKey | null>(null);
+
+  const canSubmit = walletReady && auditor.trim().length > 0;
+
+  const handleSubmit = React.useCallback(
+    (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      if (!canSubmit) return;
+      const issued = onIssue({ auditor, email });
+      if (!issued) return;
+      setJustIssued(issued);
+      setAuditor("");
+      setEmail("");
+    },
+    [canSubmit, onIssue, auditor, email],
+  );
+
+  // Auto-clear the success banner after a few seconds so the form goes back
+  // to a neutral state without a visual remnant.
+  React.useEffect(() => {
+    if (!justIssued) return;
+    const handle = setTimeout(() => setJustIssued(null), 5000);
+    return () => clearTimeout(handle);
+  }, [justIssued]);
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-      className="flex min-h-0 flex-col gap-4 rounded-2xl border border-border bg-card/60 p-5"
+      className="flex min-h-0 flex-col rounded-2xl border border-border bg-card/60 p-5"
     >
-      <div className="flex items-center gap-3">
-        <div className="grid size-9 shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
-          <HugeiconsIcon icon={KeyIcon} size={16} strokeWidth={1.6} />
+      <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-4">
+        <div className="flex items-center gap-3">
+          <div className="grid size-9 shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+            <HugeiconsIcon icon={KeyIcon} size={16} strokeWidth={1.6} />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-[14.5px] font-medium tracking-tight text-foreground">
+              Issue a viewing key
+            </h2>
+            <p className="text-[12px] text-muted-foreground">
+              Date-ranged, read-only, revocable.
+            </p>
+          </div>
         </div>
-        <div className="min-w-0">
-          <h2 className="text-[14.5px] font-medium tracking-tight text-foreground">
-            Issue a viewing key
-          </h2>
-          <p className="text-[12px] text-muted-foreground">
-            Date-ranged, read-only, revocable.
-          </p>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="auditor">Auditor</Label>
+          <Input
+            id="auditor"
+            placeholder="e.g. Trail of Bits"
+            value={auditor}
+            onChange={(e) => setAuditor(e.target.value)}
+            autoComplete="off"
+            required
+          />
         </div>
-      </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="auditor">Auditor</Label>
-        <Input id="auditor" placeholder="e.g. Trail of Bits" />
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <Label htmlFor="range-from">Date range</Label>
-          {dateActive ? (
-            <button
-              type="button"
-              onClick={onClear}
-              className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="range-from">Date range</Label>
+            {dateActive ? (
+              <button
+                type="button"
+                onClick={onClear}
+                className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <Input
+              id="range-from"
+              type="date"
+              value={fromDate}
+              max={toDate || undefined}
+              onChange={(e) => onFromChange(e.target.value)}
+              aria-label="From date"
+            />
+            <span
+              aria-hidden="true"
+              className="text-[11px] text-muted-foreground/70"
             >
-              Clear
-            </button>
-          ) : null}
+              →
+            </span>
+            <Input
+              id="range-to"
+              type="date"
+              value={toDate}
+              min={fromDate || undefined}
+              onChange={(e) => onToChange(e.target.value)}
+              aria-label="To date"
+            />
+          </div>
         </div>
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="email" hint="Encrypted out-of-band">
+            Delivery email
+          </Label>
           <Input
-            id="range-from"
-            type="date"
-            value={fromDate}
-            max={toDate || undefined}
-            onChange={(e) => onFromChange(e.target.value)}
-            aria-label="From date"
-          />
-          <span aria-hidden="true" className="text-[11px] text-muted-foreground/70">
-            →
-          </span>
-          <Input
-            id="range-to"
-            type="date"
-            value={toDate}
-            min={fromDate || undefined}
-            onChange={(e) => onToChange(e.target.value)}
-            aria-label="To date"
+            id="email"
+            type="email"
+            placeholder="auditor@firm.example"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="off"
           />
         </div>
-      </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="email" hint="Encrypted out-of-band">
-          Delivery email
-        </Label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="auditor@firm.example"
-          autoComplete="off"
-        />
-      </div>
+        <div className="mt-auto flex flex-col gap-2">
+          <AnimatePresence mode="popLayout">
+            {justIssued ? (
+              <motion.div
+                key={justIssued.id}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.22 }}
+                className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[12px] text-foreground"
+              >
+                <HugeiconsIcon
+                  icon={CheckmarkCircle01Icon}
+                  size={13}
+                  strokeWidth={2}
+                  className="text-emerald-400"
+                />
+                <span className="min-w-0 truncate">
+                  Issued for{" "}
+                  <span className="font-medium">{justIssued.auditor}</span>
+                  <span className="ml-1 font-mono text-[10.5px] text-muted-foreground">
+                    {justIssued.id}
+                  </span>
+                </span>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
 
-      <FancyButton variant="primary" size="lg" className="mt-auto self-start">
-        Generate viewing key
-        <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2.2} />
-      </FancyButton>
+          <FancyButton
+            type="submit"
+            variant="primary"
+            size="lg"
+            className="self-start"
+            disabled={!canSubmit}
+            title={
+              walletReady
+                ? undefined
+                : "Connect a wallet first to bind the key to your account."
+            }
+          >
+            Generate viewing key
+            <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2.2} />
+          </FancyButton>
+        </div>
+      </form>
     </motion.section>
   );
 }
 
-function ActiveKeysCard() {
+function ActiveKeysCard({
+  keys,
+  walletReady,
+  onRevoke,
+  onDelete,
+}: {
+  keys: IssuedKey[];
+  walletReady: boolean;
+  onRevoke: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const activeCount = keys.filter((k) => keyStatus(k) === "active").length;
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 6 }}
@@ -305,51 +439,135 @@ function ActiveKeysCard() {
           Active keys
         </h3>
         <span className="font-mono text-[10.5px] text-muted-foreground">
-          {KEYS.filter((k) => k.status === "active").length} issued
+          {activeCount} issued
         </span>
       </div>
 
-      <ul className="mt-3 flex flex-col gap-1.5">
-        {KEYS.map((k, i) => (
-          <motion.li
-            key={k.id}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              delay: 0.12 + i * 0.04,
-              duration: 0.24,
-            }}
-            className="group flex items-center gap-2.5 rounded-lg border border-border bg-background/40 px-2.5 py-2"
-          >
-            <span
-              className={cn(
-                "grid size-6 shrink-0 place-items-center rounded-md border",
-                k.status === "active"
-                  ? "border-primary/20 bg-primary/10 text-primary"
-                  : "border-border bg-background/60 text-muted-foreground",
-              )}
-            >
-              <HugeiconsIcon icon={EyeIcon} size={11} strokeWidth={1.8} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[12px] font-medium text-foreground">
-                {k.auditor}
-              </p>
-              <p className="truncate font-mono text-[10.5px] text-muted-foreground">
-                {k.range} · {k.id}
-              </p>
-            </div>
-            <button
-              type="button"
-              aria-label="Copy key id"
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <HugeiconsIcon icon={Copy01Icon} size={12} strokeWidth={1.8} />
-            </button>
-          </motion.li>
-        ))}
-      </ul>
+      {keys.length === 0 ? (
+        <p className="mt-3 rounded-lg border border-dashed border-border bg-background/30 px-3 py-4 text-center text-[11px] text-muted-foreground">
+          {walletReady
+            ? "No keys issued yet. Use the form to hand one to an auditor."
+            : "Connect a wallet to issue keys."}
+        </p>
+      ) : (
+        <ul className="mt-3 flex flex-col gap-1.5">
+          <AnimatePresence initial={false}>
+            {keys.map((k) => (
+              <ActiveKeyRow
+                key={k.id}
+                k={k}
+                onRevoke={onRevoke}
+                onDelete={onDelete}
+              />
+            ))}
+          </AnimatePresence>
+        </ul>
+      )}
     </motion.section>
+  );
+}
+
+function ActiveKeyRow({
+  k,
+  onRevoke,
+  onDelete,
+}: {
+  k: IssuedKey;
+  onRevoke: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const status = keyStatus(k);
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = React.useCallback(() => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) return;
+    navigator.clipboard.writeText(k.id).then(
+      () => setCopied(true),
+      () => {
+        // ignore — clipboard can fail in some browser contexts
+      },
+    );
+  }, [k.id]);
+
+  React.useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1200);
+    return () => clearTimeout(t);
+  }, [copied]);
+
+  return (
+    <motion.li
+      layout
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, height: 0, marginTop: 0, paddingTop: 0, paddingBottom: 0 }}
+      transition={{ duration: 0.22 }}
+      className={cn(
+        "group flex items-center gap-2.5 rounded-lg border bg-background/40 px-2.5 py-2",
+        status === "active" ? "border-border" : "border-border/60 opacity-70",
+      )}
+    >
+      <span
+        className={cn(
+          "grid size-6 shrink-0 place-items-center rounded-md border",
+          status === "active"
+            ? "border-primary/20 bg-primary/10 text-primary"
+            : "border-border bg-background/60 text-muted-foreground",
+        )}
+      >
+        <HugeiconsIcon icon={EyeIcon} size={11} strokeWidth={1.8} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[12px] font-medium text-foreground">
+          {k.auditor}
+          {status === "revoked" ? (
+            <span className="ml-1.5 font-mono text-[9.5px] uppercase tracking-[0.16em] text-muted-foreground/80">
+              Revoked
+            </span>
+          ) : null}
+        </p>
+        <p className="truncate font-mono text-[10.5px] text-muted-foreground">
+          {formatKeyRange(k)} · {k.id}
+        </p>
+      </div>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={handleCopy}
+          aria-label={copied ? "Key id copied" : "Copy key id"}
+          title={copied ? "Copied" : "Copy id"}
+          className="text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <HugeiconsIcon
+            icon={copied ? CheckmarkCircle01Icon : Copy01Icon}
+            size={12}
+            strokeWidth={1.8}
+            className={cn(copied && "text-emerald-400")}
+          />
+        </button>
+        {status === "active" ? (
+          <button
+            type="button"
+            onClick={() => onRevoke(k.id)}
+            aria-label={`Revoke key for ${k.auditor}`}
+            title="Revoke"
+            className="text-muted-foreground transition-colors hover:text-destructive"
+          >
+            <HugeiconsIcon icon={Delete02Icon} size={12} strokeWidth={1.8} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onDelete(k.id)}
+            aria-label={`Remove key for ${k.auditor}`}
+            title="Remove"
+            className="text-muted-foreground transition-colors hover:text-destructive"
+          >
+            <HugeiconsIcon icon={Delete02Icon} size={12} strokeWidth={1.8} />
+          </button>
+        )}
+      </div>
+    </motion.li>
   );
 }
 
@@ -404,7 +622,7 @@ function TransactionsCard({
         </FancyButton>
       </div>
 
-      <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-0.5">
+      <ul className="scrollbar-cloak mt-3 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
         {transactions.map((tx, i) => (
           <TransactionRow
             key={tx.signature ?? tx.commitment}
