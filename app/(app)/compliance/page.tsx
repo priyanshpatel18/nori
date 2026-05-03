@@ -2,10 +2,10 @@
 
 import {
   ArrowRight01Icon,
+  ArrowUpRight01Icon,
   Copy01Icon,
   Download01Icon,
   EyeIcon,
-  FileSecurityIcon,
   KeyIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -16,6 +16,13 @@ import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   buildComplianceCsv,
   csvFilename,
@@ -28,6 +35,7 @@ import {
 import type { ReceivedTransaction } from "@/lib/cloak/scanned-history";
 import { usePaymentHistory } from "@/lib/cloak/use-payment-history";
 import { useScannedHistory } from "@/lib/cloak/use-scanned-history";
+import { solscanAddressUrl, solscanTxUrl } from "@/lib/solana/explorer";
 import { cn } from "@/lib/utils";
 
 const KEYS: { id: string; auditor: string; range: string; status: "active" | "revoked" }[] = [
@@ -49,11 +57,6 @@ const KEYS: { id: string; auditor: string; range: string; status: "active" | "re
     range: "FY 2025",
     status: "revoked",
   },
-];
-
-const EXPORTS: { name: string; date: string; size: string }[] = [
-  { name: "Q1-2026-ledger.csv", date: "Apr 02, 2026", size: "184 KB" },
-  { name: "FY-2025-summary.csv", date: "Jan 18, 2026", size: "612 KB" },
 ];
 
 export default function CompliancePage() {
@@ -104,20 +107,33 @@ export default function CompliancePage() {
     downloadCsv(csvFilename(fromDate, toDate), csv);
   }, [scan, fromMs, toMs, fromDate, toDate]);
 
-  const exportableCount = React.useMemo(() => {
-    if (!scan) return 0;
+  const inRangeTransactions = React.useMemo<ReceivedTransaction[]>(() => {
+    if (!scan) return [];
     if (
       fromMs === Number.NEGATIVE_INFINITY &&
       toMs === Number.POSITIVE_INFINITY
     ) {
-      return scan.report.transactions.length;
+      return [...scan.report.transactions].sort(
+        (a, b) => b.timestamp - a.timestamp,
+      );
     }
-    let n = 0;
-    for (const tx of scan.report.transactions) {
-      if (tx.timestamp >= fromMs && tx.timestamp < toMs) n += 1;
-    }
-    return n;
+    return scan.report.transactions
+      .filter((tx) => tx.timestamp >= fromMs && tx.timestamp < toMs)
+      .sort((a, b) => b.timestamp - a.timestamp);
   }, [scan, fromMs, toMs]);
+
+  // Drawer state. We key the selected tx by signature ?? commitment so
+  // re-renders of the underlying scan keep the same row open.
+  const [selectedKey, setSelectedKey] = React.useState<string | null>(null);
+  const selectedTx = React.useMemo(
+    () =>
+      selectedKey == null
+        ? null
+        : (inRangeTransactions.find(
+            (tx) => (tx.signature ?? tx.commitment) === selectedKey,
+          ) ?? null),
+    [selectedKey, inRangeTransactions],
+  );
 
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] w-full flex-col overflow-hidden">
@@ -157,15 +173,24 @@ export default function CompliancePage() {
 
           <div className="flex min-h-0 flex-col gap-3">
             <ActiveKeysCard />
-            <RecentExportsCard
-              onExport={handleExportCsv}
-              canExport={Boolean(scan) && exportableCount > 0}
-              exportableCount={exportableCount}
+            <TransactionsCard
+              transactions={inRangeTransactions}
               hasScan={Boolean(scan)}
+              dateActive={dateActive}
+              onSelect={(tx) => setSelectedKey(tx.signature ?? tx.commitment)}
+              onExport={handleExportCsv}
             />
           </div>
         </div>
       </div>
+
+      <TxDetailDrawer
+        tx={selectedTx}
+        open={selectedTx !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedKey(null);
+        }}
+      />
     </div>
   );
 }
@@ -273,7 +298,7 @@ function ActiveKeysCard() {
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
-      className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-card/60 p-4"
+      className="flex shrink-0 flex-col rounded-2xl border border-border bg-card/60 p-4"
     >
       <div className="flex items-center justify-between">
         <h3 className="text-[13px] font-medium tracking-tight text-foreground">
@@ -284,7 +309,7 @@ function ActiveKeysCard() {
         </span>
       </div>
 
-      <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-0.5">
+      <ul className="mt-3 flex flex-col gap-1.5">
         {KEYS.map((k, i) => (
           <motion.li
             key={k.id}
@@ -328,34 +353,40 @@ function ActiveKeysCard() {
   );
 }
 
-function RecentExportsCard({
-  onExport,
-  canExport,
-  exportableCount,
+function TransactionsCard({
+  transactions,
   hasScan,
+  dateActive,
+  onSelect,
+  onExport,
 }: {
-  onExport: () => void;
-  canExport: boolean;
-  exportableCount: number;
+  transactions: ReceivedTransaction[];
   hasScan: boolean;
+  dateActive: boolean;
+  onSelect: (tx: ReceivedTransaction) => void;
+  onExport: () => void;
 }) {
+  const count = transactions.length;
+  const canExport = hasScan && count > 0;
   const hint = !hasScan
-    ? "Sync received first on History to enable export."
-    : exportableCount === 0
-      ? "No transactions in the selected range."
-      : `${exportableCount} ${exportableCount === 1 ? "row" : "rows"} ready.`;
+    ? "Sync received first on History."
+    : count === 0
+      ? dateActive
+        ? "No transactions in the selected range."
+        : "No transactions yet."
+      : `${count} ${count === 1 ? "tx" : "txs"}${dateActive ? " in range" : ""}`;
 
   return (
     <motion.section
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-      className="flex min-h-0 flex-col rounded-2xl border border-border bg-card/60 p-4"
+      className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-card/60 p-4"
     >
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <h3 className="text-[13px] font-medium tracking-tight text-foreground">
-            Exports
+            Transactions
           </h3>
           <p className="mt-0.5 truncate text-[10.5px] text-muted-foreground">
             {hint}
@@ -373,40 +404,377 @@ function RecentExportsCard({
         </FancyButton>
       </div>
 
-      <ul className="mt-3 flex flex-col gap-1.5">
-        {EXPORTS.map((e, i) => (
-          <motion.li
-            key={e.name}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              delay: 0.16 + i * 0.04,
-              duration: 0.24,
-            }}
-            className="flex items-center justify-between gap-2 rounded-lg border border-border bg-background/40 px-2.5 py-2"
-          >
-            <div className="min-w-0">
-              <p className="truncate font-mono text-[11.5px] text-foreground">
-                {e.name}
-              </p>
-              <p className="text-[10.5px] text-muted-foreground">
-                {e.date} · {e.size}
-              </p>
-            </div>
-            <span
-              aria-hidden="true"
-              className="grid size-7 place-items-center rounded-md border border-border text-muted-foreground"
-            >
-              <HugeiconsIcon
-                icon={FileSecurityIcon}
-                size={12}
-                strokeWidth={1.8}
-              />
-            </span>
-          </motion.li>
+      <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-0.5">
+        {transactions.map((tx, i) => (
+          <TransactionRow
+            key={tx.signature ?? tx.commitment}
+            tx={tx}
+            index={i}
+            onSelect={onSelect}
+          />
         ))}
+        {transactions.length === 0 ? (
+          <li className="grid place-items-center rounded-lg border border-dashed border-border bg-background/30 px-3 py-6 text-center text-[11px] text-muted-foreground">
+            {hint}
+          </li>
+        ) : null}
       </ul>
     </motion.section>
+  );
+}
+
+function TransactionRow({
+  tx,
+  index,
+  onSelect,
+}: {
+  tx: ReceivedTransaction;
+  index: number;
+  onSelect: (tx: ReceivedTransaction) => void;
+}) {
+  const decimals = tx.decimals ?? 9;
+  const amount = formatBaseUnits(String(tx.netAmount), decimals);
+  const symbol = tx.outputSymbol ?? tx.symbol ?? "";
+  const sigShort = tx.signature
+    ? `${tx.signature.slice(0, 4)}…${tx.signature.slice(-4)}`
+    : `${tx.commitment.slice(0, 4)}…${tx.commitment.slice(-4)}`;
+  const isDeposit = tx.txType === "deposit";
+
+  return (
+    <motion.li
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        delay: 0.12 + Math.min(index, 6) * 0.03,
+        duration: 0.22,
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => onSelect(tx)}
+        className="group flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-background/40 px-2.5 py-2 text-left transition-colors hover:border-primary/30 hover:bg-card/70"
+      >
+        <div className="min-w-0">
+          <p className="truncate text-[11.5px] font-medium text-foreground">
+            <span
+              className={cn(
+                "mr-1.5 font-mono text-[9.5px] uppercase tracking-[0.16em]",
+                isDeposit ? "text-foreground/70" : "text-emerald-400",
+              )}
+            >
+              {txTypeLabel(tx.txType)}
+            </span>
+            <span className="font-mono text-foreground">
+              {isDeposit ? "−" : "+"}
+              {amount}
+              {symbol ? (
+                <span className="ml-1 text-muted-foreground">{symbol}</span>
+              ) : null}
+            </span>
+          </p>
+          <p className="truncate font-mono text-[10px] text-muted-foreground">
+            {sigShort} · {formatTxDate(tx.timestamp)}
+          </p>
+        </div>
+        <HugeiconsIcon
+          icon={ArrowRight01Icon}
+          size={12}
+          strokeWidth={2}
+          className="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
+        />
+      </button>
+    </motion.li>
+  );
+}
+
+function txTypeLabel(txType: string): string {
+  switch (txType) {
+    case "deposit":
+      return "Deposit";
+    case "withdraw":
+      return "Withdraw";
+    case "transfer":
+      return "Transfer";
+    case "swap":
+      return "Swap";
+    default:
+      return txType || "Unknown";
+  }
+}
+
+function formatTxDate(ms: number): string {
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function TxDetailDrawer({
+  tx,
+  open,
+  onOpenChange,
+}: {
+  tx: ReceivedTransaction | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="w-full overflow-y-auto data-[side=right]:sm:max-w-md"
+      >
+        {tx ? <TxDetailBody tx={tx} /> : null}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function TxDetailBody({ tx }: { tx: ReceivedTransaction }) {
+  const decimals = tx.decimals ?? 9;
+  const symbol = tx.symbol ?? "";
+  const outputSymbol = tx.outputSymbol ?? "";
+  const amount = formatBaseUnits(String(tx.amount), decimals);
+  const fee = formatBaseUnits(String(tx.fee), decimals);
+  const netAmount = formatBaseUnits(String(tx.netAmount), decimals);
+  const runningBalance = formatBaseUnits(
+    String(tx.runningBalance),
+    decimals,
+  );
+  const solscanUrl = tx.signature ? solscanTxUrl(tx.signature) : null;
+  const recipientUrl = tx.recipient ? solscanAddressUrl(tx.recipient) : null;
+  const timestampLabel = new Date(tx.timestamp).toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
+  return (
+    <>
+      <SheetHeader className="border-b border-border">
+        <p className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-primary/80">
+          {txTypeLabel(tx.txType)}
+        </p>
+        <SheetTitle className="font-mono text-[18px] tabular-nums text-foreground">
+          {tx.txType === "deposit" ? "−" : "+"}
+          {netAmount}
+          {symbol ? (
+            <span className="ml-1.5 text-[14px] text-muted-foreground">
+              {symbol}
+            </span>
+          ) : null}
+        </SheetTitle>
+        <SheetDescription className="text-[12px]">
+          {timestampLabel}
+        </SheetDescription>
+      </SheetHeader>
+
+      <div className="flex flex-col gap-4 p-6">
+        <div className="grid grid-cols-3 gap-2">
+          <DrawerStat label="Amount" value={amount} symbol={symbol} />
+          <DrawerStat label="Fee" value={fee} symbol={symbol} muted />
+          <DrawerStat label="Net" value={netAmount} symbol={symbol} />
+        </div>
+
+        {solscanUrl ? (
+          <a
+            href={solscanUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 py-2.5 text-[12.5px] text-foreground transition-colors hover:border-primary/40 hover:bg-primary/15"
+          >
+            <span className="flex items-center gap-2">
+              <HugeiconsIcon
+                icon={ArrowUpRight01Icon}
+                size={13}
+                strokeWidth={2}
+                className="text-primary"
+              />
+              View on Solscan
+            </span>
+            <span className="font-mono text-[10.5px] text-muted-foreground">
+              {tx.signature?.slice(0, 6)}…{tx.signature?.slice(-6)}
+            </span>
+          </a>
+        ) : (
+          <div className="rounded-xl border border-dashed border-border bg-background/40 px-3 py-2.5 text-[12px] text-muted-foreground">
+            Signature not recorded — Solscan link unavailable.
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2">
+          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground/80">
+            Raw fields
+          </p>
+          <dl className="grid grid-cols-1 divide-y divide-border/70 rounded-xl border border-border bg-background/30 text-[12px]">
+            <RawField
+              label="Type"
+              value={tx.txType}
+              mono
+            />
+            <RawField
+              label="Timestamp"
+              value={String(tx.timestamp)}
+              hint={`${tx.timestamp} ms`}
+              mono
+            />
+            <RawField
+              label="Signature"
+              value={tx.signature ?? "—"}
+              href={solscanUrl ?? undefined}
+              mono
+            />
+            <RawField
+              label="Commitment"
+              value={tx.commitment}
+              mono
+            />
+            <RawField
+              label="Recipient"
+              value={tx.recipient}
+              href={recipientUrl ?? undefined}
+              mono
+            />
+            <RawField
+              label="Mint"
+              value={tx.mint ?? "—"}
+              hint={symbol || undefined}
+              mono
+            />
+            {tx.outputMint ? (
+              <RawField
+                label="Output mint"
+                value={tx.outputMint}
+                hint={outputSymbol || undefined}
+                mono
+              />
+            ) : null}
+            <RawField
+              label="Decimals"
+              value={String(decimals)}
+            />
+            <RawField
+              label="Amount (raw)"
+              value={String(tx.amount)}
+              hint={`${amount} ${symbol}`.trim()}
+              mono
+            />
+            <RawField
+              label="Fee (raw)"
+              value={String(tx.fee)}
+              hint={`${fee} ${symbol}`.trim()}
+              mono
+            />
+            <RawField
+              label="Net (raw)"
+              value={String(tx.netAmount)}
+              hint={`${netAmount} ${symbol}`.trim()}
+              mono
+            />
+            <RawField
+              label="Running balance"
+              value={String(tx.runningBalance)}
+              hint={`${runningBalance} ${symbol}`.trim()}
+              mono
+            />
+          </dl>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function DrawerStat({
+  label,
+  value,
+  symbol,
+  muted,
+}: {
+  label: string;
+  value: string;
+  symbol: string;
+  muted?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5 rounded-xl border border-border bg-background/40 px-3 py-2">
+      <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted-foreground/80">
+        {label}
+      </span>
+      <span
+        className={cn(
+          "truncate font-mono text-[13px] tabular-nums",
+          muted ? "text-foreground/80" : "text-foreground",
+        )}
+        title={`${value} ${symbol}`.trim()}
+      >
+        {value}
+        {symbol ? (
+          <span className="ml-1 text-[10.5px] text-muted-foreground">
+            {symbol}
+          </span>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
+function RawField({
+  label,
+  value,
+  hint,
+  href,
+  mono,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  href?: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 px-3 py-2">
+      <dt className="shrink-0 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/80">
+        {label}
+      </dt>
+      <dd className="min-w-0 flex-1 text-right">
+        {href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className={cn(
+              "block truncate text-foreground underline-offset-2 hover:underline",
+              mono && "font-mono",
+            )}
+            title={value}
+          >
+            {value}
+          </a>
+        ) : (
+          <span
+            className={cn(
+              "block truncate text-foreground",
+              mono && "font-mono",
+            )}
+            title={value}
+          >
+            {value}
+          </span>
+        )}
+        {hint ? (
+          <span className="block truncate text-[10px] text-muted-foreground/80">
+            {hint}
+          </span>
+        ) : null}
+      </dd>
+    </div>
   );
 }
 
