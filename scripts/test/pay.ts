@@ -52,6 +52,9 @@ async function main() {
     relayUrl: preset.relayUrl,
     signTransaction: signer.signTransaction,
     signMessage: signer.signMessage,
+    // Script has its own pretty-printer below — skip the duplicate
+    // `[cloak/fast-send]` console group from fast-send-core.
+    debug: false,
     onPhase: (phase) => {
       if (phase !== lastPhase) {
         lastPhase = phase;
