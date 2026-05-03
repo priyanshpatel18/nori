@@ -17,6 +17,11 @@ import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  buildComplianceCsv,
+  csvFilename,
+  downloadCsv,
+} from "@/lib/cloak/compliance-export";
+import {
   formatBaseUnits,
   type PaymentRecord,
 } from "@/lib/cloak/payment-history";
@@ -53,7 +58,7 @@ const EXPORTS: { name: string; date: string; size: string }[] = [
 
 export default function CompliancePage() {
   const { records } = usePaymentHistory();
-  const { received } = useScannedHistory();
+  const { scan, received } = useScannedHistory();
 
   // YYYY-MM-DD strings — empty = unbounded. Shared between the issue-key
   // form (where the auditor's window is picked) and the summary preview
@@ -93,6 +98,27 @@ export default function CompliancePage() {
     setToDate("");
   }, []);
 
+  const handleExportCsv = React.useCallback(() => {
+    if (!scan) return;
+    const { csv } = buildComplianceCsv(scan.report, fromMs, toMs);
+    downloadCsv(csvFilename(fromDate, toDate), csv);
+  }, [scan, fromMs, toMs, fromDate, toDate]);
+
+  const exportableCount = React.useMemo(() => {
+    if (!scan) return 0;
+    if (
+      fromMs === Number.NEGATIVE_INFINITY &&
+      toMs === Number.POSITIVE_INFINITY
+    ) {
+      return scan.report.transactions.length;
+    }
+    let n = 0;
+    for (const tx of scan.report.transactions) {
+      if (tx.timestamp >= fromMs && tx.timestamp < toMs) n += 1;
+    }
+    return n;
+  }, [scan, fromMs, toMs]);
+
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] w-full flex-col overflow-hidden">
       <motion.div
@@ -131,7 +157,12 @@ export default function CompliancePage() {
 
           <div className="flex min-h-0 flex-col gap-3">
             <ActiveKeysCard />
-            <RecentExportsCard />
+            <RecentExportsCard
+              onExport={handleExportCsv}
+              canExport={Boolean(scan) && exportableCount > 0}
+              exportableCount={exportableCount}
+              hasScan={Boolean(scan)}
+            />
           </div>
         </div>
       </div>
@@ -297,7 +328,23 @@ function ActiveKeysCard() {
   );
 }
 
-function RecentExportsCard() {
+function RecentExportsCard({
+  onExport,
+  canExport,
+  exportableCount,
+  hasScan,
+}: {
+  onExport: () => void;
+  canExport: boolean;
+  exportableCount: number;
+  hasScan: boolean;
+}) {
+  const hint = !hasScan
+    ? "Sync received first on History to enable export."
+    : exportableCount === 0
+      ? "No transactions in the selected range."
+      : `${exportableCount} ${exportableCount === 1 ? "row" : "rows"} ready.`;
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 6 }}
@@ -305,16 +352,25 @@ function RecentExportsCard() {
       transition={{ duration: 0.3, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
       className="flex min-h-0 flex-col rounded-2xl border border-border bg-card/60 p-4"
     >
-      <div className="flex items-center justify-between">
-        <h3 className="text-[13px] font-medium tracking-tight text-foreground">
-          Recent exports
-        </h3>
-        <HugeiconsIcon
-          icon={FileSecurityIcon}
-          size={13}
-          strokeWidth={1.8}
-          className="text-muted-foreground"
-        />
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="text-[13px] font-medium tracking-tight text-foreground">
+            Exports
+          </h3>
+          <p className="mt-0.5 truncate text-[10.5px] text-muted-foreground">
+            {hint}
+          </p>
+        </div>
+        <FancyButton
+          variant="primary"
+          size="sm"
+          onClick={onExport}
+          disabled={!canExport}
+          aria-label="Export compliance CSV for the selected date range"
+        >
+          <HugeiconsIcon icon={Download01Icon} size={12} strokeWidth={2} />
+          Export CSV
+        </FancyButton>
       </div>
 
       <ul className="mt-3 flex flex-col gap-1.5">
@@ -337,13 +393,16 @@ function RecentExportsCard() {
                 {e.date} · {e.size}
               </p>
             </div>
-            <button
-              type="button"
-              aria-label="Download"
-              className="grid size-7 place-items-center rounded-md border border-border text-muted-foreground transition-colors hover:border-primary/30 hover:text-primary"
+            <span
+              aria-hidden="true"
+              className="grid size-7 place-items-center rounded-md border border-border text-muted-foreground"
             >
-              <HugeiconsIcon icon={Download01Icon} size={12} strokeWidth={1.8} />
-            </button>
+              <HugeiconsIcon
+                icon={FileSecurityIcon}
+                size={12}
+                strokeWidth={1.8}
+              />
+            </span>
           </motion.li>
         ))}
       </ul>
