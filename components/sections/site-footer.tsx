@@ -5,7 +5,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
-import { NoriMark } from "@/components/logos";
+import { NoriWordmark } from "@/components/logos";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,12 +46,8 @@ export function SiteFooter() {
       <div className="mx-auto w-full max-w-6xl px-6 pt-20 pb-10 sm:px-8">
         <div className="grid gap-12 lg:grid-cols-[1.1fr_2fr]">
           <div className="flex flex-col gap-6">
-            <div className="flex items-center gap-2.5">
-              <NoriMark className="size-7" />
-              <span className="text-[17px] font-semibold tracking-tight text-foreground">
-                Nori
-              </span>
-            </div>
+            <NoriWordmark />
+
             <p className="max-w-sm text-[14px] leading-6 text-muted-foreground">
               Private payroll for onchain companies. Pay your team in SOL, USDC, and USDT without putting their salary on a public ledger.
             </p>

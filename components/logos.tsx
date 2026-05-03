@@ -76,28 +76,34 @@ export function CloakLogo({ className, title, ...props }: LogoProps) {
   );
 }
 
-export function NoriMark({ className, title, ...props }: LogoProps) {
+export function NoriMark(props: LogoProps) {
+  return <PublicLogo src="/nori-logo.svg" {...props} />;
+}
+
+export function NoriWordmark({
+  className,
+  markClassName,
+  textClassName,
+  title,
+}: LogoProps & {
+  markClassName?: string;
+  textClassName?: string;
+}) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      aria-hidden={title ? undefined : true}
-      role={title ? "img" : undefined}
-      className={cn("size-6", className)}
-      xmlns="http://www.w3.org/2000/svg"
-      {...(props as React.SVGAttributes<SVGSVGElement>)}
+    <span
+      className={cn("inline-flex items-center gap-2 text-primary", className)}
+      aria-label={title ?? "Nori"}
     >
-      {title ? <title>{title}</title> : null}
-      <circle cx="12" cy="12" r="11" fill="var(--background)" />
-      <circle
-        cx="12"
-        cy="12"
-        r="10.5"
-        fill="none"
-        stroke="var(--primary)"
-        strokeOpacity="0.35"
-      />
-      <path d="M12 1.5a10.5 10.5 0 0 0 0 21V1.5Z" fill="var(--primary)" />
-    </svg>
+      <NoriMark className={cn("size-7", markClassName)} />
+      <span
+        className={cn(
+          "text-[26px] font-semibold tracking-tight leading-none",
+          textClassName,
+        )}
+      >
+        NORI
+      </span>
+    </span>
   );
 }
 

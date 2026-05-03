@@ -8,7 +8,7 @@ import * as React from "react";
 import {
   BackpackLogo,
   CloakLogo,
-  NoriMark,
+  NoriWordmark,
   PhantomLogo,
   SolanaLogo,
   SolflareLogo,
@@ -21,11 +21,8 @@ import { fancyButtonVariants } from "@/components/ui/fancy-button";
 function TopBar() {
   return (
     <header className="relative z-20 mx-auto flex w-full max-w-6xl items-center justify-between px-6 pt-6 sm:px-10">
-      <Link href="/" className="flex items-center gap-2">
-        <NoriMark className="size-7" />
-        <span className="text-[15px] font-semibold tracking-tight text-foreground">
-          Nori
-        </span>
+      <Link href="/" className="inline-flex items-center">
+        <NoriWordmark markClassName="size-6" textClassName="text-[20px]" />
       </Link>
 
       <div className="flex items-center gap-2">

@@ -13,7 +13,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 
-import { NoriMark } from "@/components/logos";
+import { NoriWordmark } from "@/components/logos";
 import {
   Sidebar,
   SidebarContent,
@@ -80,20 +80,14 @@ export function AppSidebar() {
           className="group/brand flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-sidebar-accent/60"
         >
           <motion.span
-            className="grid size-7 place-items-center"
-            initial={{ rotate: -8, scale: 0.85, opacity: 0 }}
-            animate={{ rotate: 0, scale: 1, opacity: 1 }}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
             transition={{ type: "spring", stiffness: 320, damping: 22 }}
           >
-            <NoriMark className="size-7" />
-          </motion.span>
-          <motion.span
-            className="text-[15px] font-semibold tracking-tight text-sidebar-foreground group-data-[collapsible=icon]:hidden"
-            initial={{ opacity: 0, x: -6 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.08, duration: 0.25 }}
-          >
-            Nori
+            <NoriWordmark
+              markClassName="size-6"
+              textClassName="text-[20px] group-data-[collapsible=icon]:hidden"
+            />
           </motion.span>
         </Link>
       </SidebarHeader>
@@ -138,21 +132,21 @@ export function AppSidebar() {
                         isActive={isActive}
                         tooltip={item.label}
                         className={cn(
-                          "relative z-10 bg-transparent! data-active:bg-transparent!",
+                          "relative z-10 h-11 gap-3 bg-transparent! data-active:bg-transparent!",
                           isActive && "text-sidebar-accent-foreground",
                         )}
                         render={<Link href={item.href} />}
                       >
                         <HugeiconsIcon
                           icon={item.icon}
-                          size={16}
+                          size={20}
                           strokeWidth={1.8}
                           className={cn(
-                            "transition-colors",
+                            "size-5! transition-colors",
                             isActive ? "text-primary" : "text-sidebar-foreground/70",
                           )}
                         />
-                        <span>{item.label}</span>
+                        <span className="text-[15px]">{item.label}</span>
                       </SidebarMenuButton>
                     </motion.div>
                   </SidebarMenuItem>

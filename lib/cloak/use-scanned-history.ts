@@ -8,7 +8,6 @@ import { solanaConfig } from "@/lib/solana/config";
 
 import {
   clearScan,
-  isScanStale,
   loadScan,
   mergeReports,
   saveScan,
@@ -31,10 +30,6 @@ export type UseScannedHistory = {
   reset: () => Promise<StoredScan | null>;
 };
 
-// Re-scan in the background if the cached report is older than this. The
-// API is incremental (only fetches NEW signatures since `lastSignature`),
-// so this is cheap on the second hit.
-const STALE_AFTER_MS = 5 * 60 * 1000;
 
 export function useScannedHistory(): UseScannedHistory {
   const wallet = useWallet();
@@ -155,25 +150,15 @@ export function useScannedHistory(): UseScannedHistory {
     return run;
   }, [sender]);
 
-  // Auto-sync once per (wallet, mount). Refreshes silently if the cache is
-  // stale, otherwise no-ops. Uses a ref-keyed guard so the trigger fires for
-  // a wallet at most once per mount even across re-renders.
-  const autoSyncedFor = React.useRef<string | null>(null);
-  React.useEffect(() => {
-    if (!sender) return;
-    if (autoSyncedFor.current === sender) return;
-    autoSyncedFor.current = sender;
-    const cached = loadScan(sender, solanaConfig.cluster);
-    if (cached && !isScanStale(cached, STALE_AFTER_MS)) return;
-    void sync().catch(() => {
-      // Surfaced via `error` state.
-    });
-  }, [sender, sync]);
+  // Auto-sync was previously fired on every (wallet, mount). It made the
+  // /api/scan-received endpoint hammer the upstream RPC and turn into a
+  // 429 retry loop on Helius free-tier. The scan is now strictly opt-in
+  // via the "Sync received" button — manual control + small bounded
+  // fetches is the cheaper, calmer baseline.
 
   const reset = React.useCallback(async () => {
     if (!sender) return null;
     clearScan(sender, solanaConfig.cluster);
-    autoSyncedFor.current = null;
     return sync();
   }, [sender, sync]);
 
