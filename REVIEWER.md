@@ -167,6 +167,22 @@ Chain-native scanner. Your viewing key stays on your device. The chain has the d
 - Type chips: Pay, Payroll, Recurring, Deposit, Withdraw, Transfer, Swap.
 - Each row's Solscan link opens the on-chain tx; the same opacity check from `/pay` applies.
 
+### Layout: page does not scroll
+
+`/history` matches `/compliance`: everything fits in one viewport (`h-[calc(100dvh-3.5rem)]`). The transactions list is the only scroll surface; the toolbar and pagination stay pinned.
+
+1. Open `/history` with enough records that the list overflows (run a few `/pay` sends, or sync received).
+2. Scroll the **list**. The header bar, summary tiles, filter tabs, search, date range, and pagination should not move.
+3. Confirm the window itself does not scroll — DevTools Console:
+
+   ```js
+   document.documentElement.scrollHeight === document.documentElement.clientHeight
+   ```
+
+   should return `true`.
+4. Resize the window vertically. The list area absorbs the change; toolbar and pagination stay flush.
+5. Switch filter tabs and toggle the date range. The list re-renders in place; nothing above or below jumps.
+
 ### If sync fails (429s)
 
 Free-tier RPC providers throttle. Click **Reset cache** to drop the cursor, then sync again. The scanner is incremental, so reset is rarely needed; it is there for completeness.
