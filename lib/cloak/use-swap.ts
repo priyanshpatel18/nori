@@ -7,7 +7,11 @@ import * as React from "react";
 import { cloakConfig } from "./config";
 import { isSubmittingStatus } from "./fast-send-core";
 import { createMemoizedSignMessage } from "./sign-message-cache";
-import { swapOnce, type SwapPhase } from "./swap-core";
+import {
+  swapOnce,
+  type SwapPhase,
+  type SwapTxUpdate,
+} from "./swap-core";
 
 export type SwapStatus =
   | "idle"
@@ -15,27 +19,40 @@ export type SwapStatus =
   | "deposit-submit"
   | "swap-proof"
   | "swap-submit"
+  | "swap-settle"
   | "success"
   | "error";
+
+export type SwapTxStatus = "pending" | "submitted" | "settled" | "failed";
+
+export type SwapTxRecord = {
+  signature: string | null;
+  status: SwapTxStatus;
+  error?: string;
+};
 
 export type SwapState = {
   status: SwapStatus;
   progress: string | null;
   uiPercent: number;
-  depositSignature: string | null;
-  swapSignature: string | null;
+  depositTx: SwapTxRecord;
+  openSwapStateTx: SwapTxRecord;
+  settlementTx: SwapTxRecord;
   swapStatePda: string | null;
   requestId: string | null;
   recipientAta: string | null;
   error: Error | null;
 };
 
+const PENDING_TX: SwapTxRecord = { signature: null, status: "pending" };
+
 const initialState: SwapState = {
   status: "idle",
   progress: null,
   uiPercent: 0,
-  depositSignature: null,
-  swapSignature: null,
+  depositTx: PENDING_TX,
+  openSwapStateTx: PENDING_TX,
+  settlementTx: PENDING_TX,
   swapStatePda: null,
   requestId: null,
   recipientAta: null,
@@ -46,10 +63,11 @@ const PHASE_WINDOW: Record<
   Exclude<SwapStatus, "idle" | "error">,
   { enter: number; ceiling: number }
 > = {
-  "deposit-proof": { enter: 5, ceiling: 35 },
-  "deposit-submit": { enter: 35, ceiling: 50 },
-  "swap-proof": { enter: 50, ceiling: 85 },
-  "swap-submit": { enter: 85, ceiling: 95 },
+  "deposit-proof": { enter: 5, ceiling: 30 },
+  "deposit-submit": { enter: 30, ceiling: 45 },
+  "swap-proof": { enter: 45, ceiling: 75 },
+  "swap-submit": { enter: 75, ceiling: 88 },
+  "swap-settle": { enter: 88, ceiling: 98 },
   success: { enter: 100, ceiling: 100 },
 };
 
@@ -126,27 +144,32 @@ export function useSwap() {
             setState((s) => onProgressTick(s, status)),
           onProofProgress: (percent) =>
             setState((s) => applyProofPercent(s, percent)),
+          onTxUpdate: (update) =>
+            setState((s) => applyTxUpdate(s, update)),
         });
 
-        setState({
+        setState((s) => ({
+          ...s,
           status: "success",
           progress: null,
           uiPercent: 100,
-          depositSignature: result.depositSignature,
-          swapSignature: result.swapSignature,
           swapStatePda: result.swapStatePda,
-          requestId: result.requestId ?? null,
+          requestId: result.requestId,
           recipientAta: result.recipientAta,
+          settlementTx: result.settlementSignature
+            ? { signature: result.settlementSignature, status: "settled" }
+            : s.settlementTx,
           error: null,
-        });
+        }));
 
         return result;
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
         setState((s) => ({
-          ...initialState,
+          ...s,
           status: "error",
-          depositSignature: s.depositSignature,
+          progress: null,
+          uiPercent: 0,
           error,
         }));
         throw error;
@@ -192,6 +215,22 @@ function onProgressTick(s: SwapState, message: string): SwapState {
     progress: message,
     uiPercent: Math.max(s.uiPercent, nextPercent),
   };
+}
+
+function applyTxUpdate(s: SwapState, update: SwapTxUpdate): SwapState {
+  const record: SwapTxRecord = {
+    signature: update.signature,
+    status: update.status,
+    error: update.error,
+  };
+  switch (update.kind) {
+    case "deposit":
+      return { ...s, depositTx: record };
+    case "open-swap-state":
+      return { ...s, openSwapStateTx: record };
+    case "settlement":
+      return { ...s, settlementTx: record };
+  }
 }
 
 function applyProofPercent(s: SwapState, percent: number): SwapState {

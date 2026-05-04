@@ -26,7 +26,7 @@ import {
   toBaseUnits,
   type ShieldTokenId,
 } from "@/lib/cloak/tokens";
-import { useSwap } from "@/lib/cloak/use-swap";
+import { useSwap, type SwapTxRecord } from "@/lib/cloak/use-swap";
 import {
   applySlippageBps,
   formatBaseUnits,
@@ -137,7 +137,15 @@ export default function SwapPage() {
     swap.status === "deposit-proof" ||
     swap.status === "deposit-submit" ||
     swap.status === "swap-proof" ||
-    swap.status === "swap-submit";
+    swap.status === "swap-submit" ||
+    swap.status === "swap-settle";
+
+  const showTxStatus =
+    submitting ||
+    swap.status === "success" ||
+    (swap.status === "error" &&
+      (swap.depositTx.status !== "pending" ||
+        swap.openSwapStateTx.status !== "pending"));
 
   const canSubmit =
     wallet.connected &&
@@ -311,15 +319,15 @@ export default function SwapPage() {
             message={swap.progress ?? phaseLabel(swap.status)}
           />
 
-          {swap.status === "error" && swap.error && (
-            <p className="text-[12px] text-destructive">{swap.error.message}</p>
+          {showTxStatus && (
+            <SwapTxStatus
+              openSwapStateTx={swap.openSwapStateTx}
+              settlementTx={swap.settlementTx}
+            />
           )}
 
-          {swap.status === "success" && swap.swapSignature && (
-            <SuccessFootnote
-              swapSignature={swap.swapSignature}
-              depositSignature={swap.depositSignature}
-            />
+          {swap.status === "error" && swap.error && (
+            <p className="text-[12px] text-destructive">{swap.error.message}</p>
           )}
 
           {quoteError && (
@@ -484,7 +492,9 @@ function submitButtonLabel(
     case "swap-proof":
       return "Generating proof (2/2)…";
     case "swap-submit":
-      return "Submitting swap…";
+      return "Opening swap state…";
+    case "swap-settle":
+      return "Waiting for settlement…";
     case "success":
       return "Swap another";
     default:
@@ -501,7 +511,9 @@ function phaseLabel(status: ReturnType<typeof useSwap>["status"]): string {
     case "swap-proof":
       return "Generating swap proof";
     case "swap-submit":
-      return "Submitting swap to relay";
+      return "Opening swap state on-chain";
+    case "swap-settle":
+      return "Waiting for settlement (Tx2)";
     default:
       return "Working";
   }
@@ -547,35 +559,112 @@ function SwapProgress({
   );
 }
 
-function SuccessFootnote({
-  swapSignature,
-  depositSignature,
+function SwapTxStatus({
+  openSwapStateTx,
+  settlementTx,
 }: {
-  swapSignature: string;
-  depositSignature: string | null;
+  openSwapStateTx: SwapTxRecord;
+  settlementTx: SwapTxRecord;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 text-[11.5px] text-muted-foreground">
-      <span>Swap submitted.</span>
-      <a
-        href={solscanTxUrl(swapSignature)}
-        target="_blank"
-        rel="noreferrer"
-        className="rounded-md border border-border bg-card/60 px-2 py-0.5 font-mono text-foreground transition-colors hover:bg-secondary"
-      >
-        swap {shortSig(swapSignature)} ↗
-      </a>
-      {depositSignature && (
-        <a
-          href={solscanTxUrl(depositSignature)}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-md border border-border bg-card/60 px-2 py-0.5 font-mono text-foreground transition-colors hover:bg-secondary"
-        >
-          shield {shortSig(depositSignature)} ↗
-        </a>
-      )}
+    <div className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-background/40">
+      <SwapTxRow
+        index={1}
+        label="Open swap state"
+        hint="Verifies your private input on-chain"
+        record={openSwapStateTx}
+      />
+      <SwapTxRow
+        index={2}
+        label="Settle"
+        hint="Relay executes the trade and pays your ATA"
+        record={settlementTx}
+      />
     </div>
+  );
+}
+
+function SwapTxRow({
+  index,
+  label,
+  hint,
+  record,
+}: {
+  index: number;
+  label: string;
+  hint: string;
+  record: SwapTxRecord;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="grid size-5 shrink-0 place-items-center rounded-full border border-border bg-card/60 font-mono text-[10.5px] text-muted-foreground"
+        >
+          {index}
+        </span>
+        <div className="flex min-w-0 flex-col">
+          <span className="text-[12.5px] font-medium text-foreground">
+            Tx{index} · {label}
+          </span>
+          <span className="truncate text-[11px] text-muted-foreground">
+            {record.error ?? hint}
+          </span>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <SwapTxPill status={record.status} />
+        {record.signature ? (
+          <a
+            href={solscanTxUrl(record.signature)}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 rounded-md border border-border bg-card/60 px-2 py-0.5 font-mono text-[11px] text-foreground transition-colors hover:bg-secondary"
+          >
+            <span>{shortSig(record.signature)}</span>
+            <span aria-hidden="true">↗</span>
+            <span className="sr-only">Open on Solscan</span>
+          </a>
+        ) : (
+          <span className="font-mono text-[11px] text-muted-foreground">·</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SwapTxPill({ status }: { status: SwapTxRecord["status"] }) {
+  const cls = cn(
+    "inline-flex h-5 items-center gap-1 rounded-full border px-2 font-mono text-[10.5px] uppercase tracking-wide",
+    status === "settled" &&
+      "border-primary/30 bg-primary/10 text-primary",
+    status === "submitted" &&
+      "border-yellow-600/30 bg-yellow-600/10 text-yellow-700 dark:text-yellow-400",
+    status === "failed" && "border-destructive/40 bg-destructive/10 text-destructive",
+    status === "pending" &&
+      "border-border bg-card/60 text-muted-foreground",
+  );
+  const dotCls = cn(
+    "size-1.5 rounded-full",
+    status === "settled" && "bg-primary",
+    status === "submitted" && "bg-yellow-500 animate-pulse",
+    status === "failed" && "bg-destructive",
+    status === "pending" && "bg-muted-foreground/50",
+  );
+  const label =
+    status === "settled"
+      ? "Done"
+      : status === "submitted"
+        ? "In flight"
+        : status === "failed"
+          ? "Failed"
+          : "Waiting";
+  return (
+    <span className={cls}>
+      <span aria-hidden="true" className={dotCls} />
+      <span>{label}</span>
+    </span>
   );
 }
 
