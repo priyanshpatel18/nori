@@ -3,6 +3,7 @@
 import {
   ClockIcon,
   DollarSendIcon,
+  Exchange01Icon,
   FileSecurityIcon,
   UserGroupIcon,
   UserMultipleIcon,
@@ -42,6 +43,12 @@ const NAV: NavItem[] = [
     label: "Pay",
     description: "Send a single private payment.",
     icon: DollarSendIcon,
+  },
+  {
+    href: "/swap",
+    label: "Swap",
+    description: "Trade tokens privately inside the pool.",
+    icon: Exchange01Icon,
   },
   {
     href: "/payroll",

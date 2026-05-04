@@ -53,6 +53,17 @@ export function isShieldTokenSupported(id: ShieldTokenId): boolean {
   return getShieldToken(id) !== null;
 }
 
+export function listShieldTokens(): ShieldToken[] {
+  const cluster = REGISTRY[solanaConfig.cluster];
+  if (!cluster) return [];
+  const out: ShieldToken[] = [];
+  for (const id of Object.keys(cluster) as ShieldTokenId[]) {
+    const entry = cluster[id];
+    if (entry) out.push({ id, ...entry });
+  }
+  return out;
+}
+
 export function getShieldTokenByMint(mint: string): ShieldToken | null {
   const cluster = REGISTRY[solanaConfig.cluster];
   if (!cluster) return null;
