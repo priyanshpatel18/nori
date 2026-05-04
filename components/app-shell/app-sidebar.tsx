@@ -28,7 +28,17 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
+import { cloakConfig } from "@/lib/cloak/config";
+import { solanaConfig, type SolanaCluster } from "@/lib/solana/config";
+import { solscanAddressUrl } from "@/lib/solana/explorer";
 import { cn } from "@/lib/utils";
+
+const CLUSTER_LABEL: Record<SolanaCluster, string> = {
+  "mainnet-beta": "Mainnet",
+  devnet: "Devnet",
+  testnet: "Testnet",
+  localnet: "Localnet",
+};
 
 type NavItem = {
   href: string;
@@ -165,20 +175,29 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
-        <motion.div
+        <motion.a
+          href={solscanAddressUrl(cloakConfig.programId.toBase58())}
+          target="_blank"
+          rel="noreferrer"
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.32, duration: 0.3 }}
-          className="rounded-xl border border-sidebar-border bg-sidebar-accent/40 p-3 group-data-[collapsible=icon]:hidden"
+          className="block rounded-xl border border-sidebar-border bg-sidebar-accent/40 p-3 transition-colors hover:border-primary/30 hover:bg-sidebar-accent/70 group-data-[collapsible=icon]:hidden"
+          aria-label={`Open shield-pool program on Solscan (${CLUSTER_LABEL[solanaConfig.cluster]})`}
         >
           <p className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground">
-            Mainnet
+            {CLUSTER_LABEL[solanaConfig.cluster]}
           </p>
           <p className="mt-1 truncate font-mono text-[11.5px] text-sidebar-foreground/80">
-            zh1eLd6r…6qRkW
+            {shortProgramId(cloakConfig.programId.toBase58())}
           </p>
-        </motion.div>
+        </motion.a>
       </SidebarFooter>
     </Sidebar>
   );
+}
+
+function shortProgramId(id: string): string {
+  if (id.length <= 12) return id;
+  return `${id.slice(0, 8)}…${id.slice(-5)}`;
 }

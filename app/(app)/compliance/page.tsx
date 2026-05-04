@@ -14,6 +14,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { AnimatePresence, motion } from "motion/react";
 import * as React from "react";
 
+import { PageHeader } from "@/components/app-shell/page-header";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
@@ -166,50 +167,46 @@ export default function CompliancePage() {
   );
 
   return (
-    <div className="flex h-[calc(100dvh-3.5rem)] w-full flex-col overflow-hidden">
-      <motion.div
-        initial={{ opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.24 }}
-        className="flex items-center justify-between gap-4 border-b border-border px-4 py-3 sm:px-6"
-      >
-        <div className="min-w-0">
-          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-primary/80">
-            Selective disclosure
-          </p>
-          <p className="mt-0.5 truncate text-[12.5px] text-muted-foreground">
-            Hand a viewing key to one auditor. They reconstruct your ledger off-chain. The chain still sees nothing.
-          </p>
-        </div>
-      </motion.div>
+    <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+      <PageHeader
+        eyebrow="Selective disclosure"
+        title="Compliance"
+        description="Hand a viewing key to one auditor. They reconstruct your ledger off-chain. The chain still sees nothing."
+      />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 p-4 sm:p-6">
-        <SummaryStats
-          summaries={summaries}
-          dateActive={dateActive}
-          fromLabel={fromDate}
-          toLabel={toDate}
-        />
-
-        <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1.4fr_1fr]">
-          <IssueViewingKey
-            fromDate={fromDate}
-            toDate={toDate}
-            onFromChange={setFromDate}
-            onToChange={setToDate}
-            onClear={clearDateRange}
+      <div className="flex min-h-0 flex-1 flex-col gap-2.5 p-4 sm:p-5">
+        <div className="shrink-0">
+          <SummaryStats
+            summaries={summaries}
             dateActive={dateActive}
-            walletReady={Boolean(issuer)}
-            onIssue={handleIssueKey}
+            fromLabel={fromDate}
+            toLabel={toDate}
           />
+        </div>
 
-          <div className="flex min-h-0 flex-col gap-3">
-            <ActiveKeysCard
-              keys={issuedKeys}
+        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-3 lg:grid-cols-[1.4fr_1fr]">
+          <div className="flex min-h-0 flex-col">
+            <IssueViewingKey
+              fromDate={fromDate}
+              toDate={toDate}
+              onFromChange={setFromDate}
+              onToChange={setToDate}
+              onClear={clearDateRange}
+              dateActive={dateActive}
               walletReady={Boolean(issuer)}
-              onRevoke={handleRevokeKey}
-              onDelete={handleDeleteKey}
+              onIssue={handleIssueKey}
             />
+          </div>
+
+          <div className="flex h-full min-h-0 flex-col gap-3">
+            <div className="scrollbar-cloak flex max-h-[50%] shrink-0 flex-col overflow-y-auto">
+              <ActiveKeysCard
+                keys={issuedKeys}
+                walletReady={Boolean(issuer)}
+                onRevoke={handleRevokeKey}
+                onDelete={handleDeleteKey}
+              />
+            </div>
             <TransactionsCard
               transactions={inRangeTransactions}
               hasScan={Boolean(scan)}
@@ -283,7 +280,7 @@ function IssueViewingKey({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-      className="flex min-h-0 flex-col rounded-2xl border border-border bg-card/60 p-5"
+      className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-card/60 p-5"
     >
       <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-4">
         <div className="flex items-center gap-3">

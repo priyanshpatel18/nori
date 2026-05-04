@@ -176,7 +176,15 @@ export default function TeamPage() {
         )}
 
         {ready && members.length > 0 && (
-          <ul className="flex flex-col gap-2">
+          <ul
+            className={cn(
+              "flex flex-col gap-2",
+              // After 6 members the list scrolls internally so the page never
+              // exceeds the viewport. Pre-roll: row is ~78px + 8px gap.
+              members.length > 6 &&
+                "scrollbar-cloak max-h-[520px] overflow-y-auto pr-1",
+            )}
+          >
             <AnimatePresence initial={false}>
               {filtered.map((m, i) => (
                 <MemberRow

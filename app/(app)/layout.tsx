@@ -11,11 +11,11 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <SidebarProvider defaultOpen>
+    <SidebarProvider defaultOpen className="h-svh overflow-hidden">
       <AppSidebar />
       <SidebarInset className="bg-background">
         <AppTopbar />
-        <div className="flex-1 overflow-x-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden">
           <PageTransition>{children}</PageTransition>
         </div>
       </SidebarInset>

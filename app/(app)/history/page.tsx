@@ -20,6 +20,7 @@ import * as React from "react";
 
 import { useWallet } from "@solana/wallet-adapter-react";
 
+import { PageHeader } from "@/components/app-shell/page-header";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -184,27 +185,19 @@ export default function HistoryPage() {
   const showPagination = filteredGroups.length > PAGE_SIZE;
 
   return (
-    <div className="flex h-[calc(100dvh-3.5rem)] w-full flex-col overflow-hidden">
-      <motion.div
-        initial={{ opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.24 }}
-        className="flex items-center justify-between gap-4 border-b border-border px-4 py-3 sm:px-6"
-      >
-        <div className="min-w-0">
-          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-primary/80">
-            Private ledger
-          </p>
-          <p className="mt-0.5 truncate text-[12.5px] text-muted-foreground">
-            Every payment you've sent through Nori. The chain sees a transaction. Only you see what's inside.
-          </p>
+    <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+      <PageHeader
+        eyebrow="Private ledger"
+        title="History"
+        description="Every payment you've sent through Nori. The chain sees a transaction. Only you see what's inside."
+      />
+
+      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-2.5 p-4 sm:p-5">
+        <div className="shrink-0">
+          <BalanceSummary summaries={tokenSummaries} />
         </div>
-      </motion.div>
 
-      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-3 p-4 sm:p-6">
-        <BalanceSummary summaries={tokenSummaries} />
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <FilterTabs
             value={filter}
             onChange={setFilter}
@@ -249,24 +242,28 @@ export default function HistoryPage() {
           </div>
         </div>
 
-        <DateRangeBar
-          from={fromDate}
-          to={toDate}
-          onFromChange={setFromDate}
-          onToChange={setToDate}
-          onClear={clearDateRange}
-          active={dateActive}
-        />
+        <div className="shrink-0">
+          <DateRangeBar
+            from={fromDate}
+            to={toDate}
+            onFromChange={setFromDate}
+            onToChange={setToDate}
+            onClear={clearDateRange}
+            active={dateActive}
+          />
+        </div>
 
-        <ScanStatusBar
-          scan={scan}
-          status={scanStatus}
-          progress={scanProgress}
-          error={scanError}
-          onReset={handleReset}
-        />
+        <div className="shrink-0">
+          <ScanStatusBar
+            scan={scan}
+            status={scanStatus}
+            progress={scanProgress}
+            error={scanError}
+            onReset={handleReset}
+          />
+        </div>
 
-        <ul className="scrollbar-cloak flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
+        <ul className="flex flex-col gap-2">
           {pagedGroups.map((g, i) =>
             g.kind === "single" ? (
               g.record.swap ? (
@@ -326,15 +323,17 @@ export default function HistoryPage() {
         </ul>
 
         {showPagination && (
-          <Pagination
-            page={safePage}
-            pageCount={pageCount}
-            pageStart={pageStart}
-            pageEnd={Math.min(pageStart + PAGE_SIZE, filteredGroups.length)}
-            total={filteredGroups.length}
-            onPrev={() => setPage((p) => Math.max(0, p - 1))}
-            onNext={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-          />
+          <div className="shrink-0">
+            <Pagination
+              page={safePage}
+              pageCount={pageCount}
+              pageStart={pageStart}
+              pageEnd={Math.min(pageStart + PAGE_SIZE, filteredGroups.length)}
+              total={filteredGroups.length}
+              onPrev={() => setPage((p) => Math.max(0, p - 1))}
+              onNext={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+            />
+          </div>
         )}
       </div>
     </div>
@@ -797,7 +796,7 @@ function DirChip({ direction }: { direction: "in" | "out" }) {
         "px-1.5 py-px font-mono text-[9.5px] tracking-[0.16em]",
         direction === "in"
           ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-          : "border-border bg-background/60 text-foreground/70",
+          : "border-yellow-600/30 bg-yellow-600/10 text-yellow-700 dark:text-yellow-400",
       )}
     >
       {direction === "in" ? "In" : "Out"}

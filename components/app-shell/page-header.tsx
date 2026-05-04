@@ -15,7 +15,7 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-6 border-b border-border px-4 pt-10 pb-8 sm:flex-row sm:items-end sm:justify-between sm:px-8">
+    <div className="flex flex-col gap-3 border-b border-border px-4 pt-5 pb-4 sm:flex-row sm:items-end sm:justify-between sm:px-8">
       <div className="min-w-0">
         {eyebrow && (
           <motion.p
@@ -31,7 +31,7 @@ export function PageHeader({
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.04 }}
-          className="mt-1.5 text-[28px] font-semibold leading-tight tracking-tight text-foreground sm:text-[32px]"
+          className="mt-1.5 text-[24px] font-semibold leading-tight tracking-tight text-foreground sm:text-[28px]"
         >
           {title}
         </motion.h1>
@@ -40,7 +40,7 @@ export function PageHeader({
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.08 }}
-            className="mt-2 max-w-xl text-[14.5px] leading-6 text-muted-foreground"
+            className="mt-2 max-w-xl text-[13.5px] leading-5 text-muted-foreground"
           >
             {description}
           </motion.p>

@@ -13,9 +13,17 @@ const TITLES: Record<string, { title: string; subtitle: string }> = {
     title: "Pay",
     subtitle: "Send a private payment in one transaction.",
   },
+  "/swap": {
+    title: "Swap",
+    subtitle: "Trade tokens privately inside the pool.",
+  },
   "/payroll": {
     title: "Payroll",
     subtitle: "Run your roster, settle in seconds.",
+  },
+  "/team": {
+    title: "Team",
+    subtitle: "Saved recipients and recurring schedules.",
   },
   "/history": {
     title: "History",
