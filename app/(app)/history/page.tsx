@@ -20,7 +20,6 @@ import * as React from "react";
 
 import { useWallet } from "@solana/wallet-adapter-react";
 
-import { PageHeader } from "@/components/app-shell/page-header";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -185,14 +184,24 @@ export default function HistoryPage() {
   const showPagination = filteredGroups.length > PAGE_SIZE;
 
   return (
-    <>
-      <PageHeader
-        eyebrow="Private ledger"
-        title="History"
-        description="Every payment you've sent through Nori. The chain sees a transaction. Only you see what's inside."
-      />
+    <div className="flex h-[calc(100dvh-3.5rem)] w-full flex-col overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.24 }}
+        className="flex items-center justify-between gap-4 border-b border-border px-4 py-3 sm:px-6"
+      >
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-primary/80">
+            Private ledger
+          </p>
+          <p className="mt-0.5 truncate text-[12.5px] text-muted-foreground">
+            Every payment you've sent through Nori. The chain sees a transaction. Only you see what's inside.
+          </p>
+        </div>
+      </motion.div>
 
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6 sm:px-8">
+      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-3 p-4 sm:p-6">
         <BalanceSummary summaries={tokenSummaries} />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -257,7 +266,7 @@ export default function HistoryPage() {
           onReset={handleReset}
         />
 
-        <ul className="flex flex-col gap-2">
+        <ul className="scrollbar-cloak flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
           {pagedGroups.map((g, i) =>
             g.kind === "single" ? (
               g.record.swap ? (
@@ -328,7 +337,7 @@ export default function HistoryPage() {
           />
         )}
       </div>
-    </>
+    </div>
   );
 }
 
