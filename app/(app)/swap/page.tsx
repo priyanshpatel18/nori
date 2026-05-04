@@ -159,7 +159,12 @@ export default function SwapPage() {
       (swap.depositTx.status !== "pending" ||
         swap.openSwapStateTx.status !== "pending"));
 
+  // Swap submission is paused while we resolve an SDK-side constraint
+  // around the swap pool tree (see swap-core comments). The UI stays
+  // interactive so users can browse quotes; the submit is hard-disabled.
+  const SWAP_DISABLED = true;
   const canSubmit =
+    !SWAP_DISABLED &&
     wallet.connected &&
     !submitting &&
     amountValid &&
@@ -371,16 +376,39 @@ export default function SwapPage() {
             />
           </div>
 
-          <FancyButton
-            type="submit"
-            variant="primary"
-            size="lg"
-            className="mt-2 self-start"
-            disabled={!canSubmit}
-          >
-            {submitButtonLabel(swap.status, wallet.connected, status === "loading")}
-            <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2.2} />
-          </FancyButton>
+          <div className="mt-2 flex flex-col gap-1.5">
+            <FancyButton
+              type="submit"
+              variant="primary"
+              size="lg"
+              className="self-start"
+              disabled={!canSubmit}
+              aria-disabled={SWAP_DISABLED || undefined}
+              title={
+                SWAP_DISABLED
+                  ? "Swap is temporarily disabled while we resolve an SDK constraint."
+                  : undefined
+              }
+            >
+              {SWAP_DISABLED
+                ? "Swap temporarily disabled"
+                : submitButtonLabel(
+                    swap.status,
+                    wallet.connected,
+                    status === "loading",
+                  )}
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                size={14}
+                strokeWidth={2.2}
+              />
+            </FancyButton>
+            {SWAP_DISABLED && (
+              <p className="text-[11.5px] text-muted-foreground">
+                Quotes still update live. Submission is paused while we resolve an SDK constraint.
+              </p>
+            )}
+          </div>
 
           <SwapProgress
             show={submitting}

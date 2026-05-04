@@ -245,7 +245,9 @@ export function isStaleNoteError(err: unknown): boolean {
   const msg = err.message;
   return (
     msg.includes("note index is stale") ||
-    msg.includes("Local note commitment does not match relay tree")
+    msg.includes("Local note commitment does not match relay tree") ||
+    msg.includes("Local private notes may be stale") ||
+    msg.includes("is beyond next_index")
   );
 }
 

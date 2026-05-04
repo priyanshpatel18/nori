@@ -20,6 +20,7 @@ export type SwapStatus =
   | "swap-proof"
   | "swap-submit"
   | "swap-settle"
+  | "swap-recover"
   | "success"
   | "error";
 
@@ -38,6 +39,7 @@ export type SwapState = {
   depositTx: SwapTxRecord;
   openSwapStateTx: SwapTxRecord;
   settlementTx: SwapTxRecord;
+  recoveryTx: SwapTxRecord;
   swapStatePda: string | null;
   requestId: string | null;
   recipientAta: string | null;
@@ -53,6 +55,7 @@ const initialState: SwapState = {
   depositTx: PENDING_TX,
   openSwapStateTx: PENDING_TX,
   settlementTx: PENDING_TX,
+  recoveryTx: PENDING_TX,
   swapStatePda: null,
   requestId: null,
   recipientAta: null,
@@ -68,6 +71,7 @@ const PHASE_WINDOW: Record<
   "swap-proof": { enter: 45, ceiling: 75 },
   "swap-submit": { enter: 75, ceiling: 88 },
   "swap-settle": { enter: 88, ceiling: 98 },
+  "swap-recover": { enter: 50, ceiling: 95 },
   success: { enter: 100, ceiling: 100 },
 };
 
@@ -230,6 +234,8 @@ function applyTxUpdate(s: SwapState, update: SwapTxUpdate): SwapState {
       return { ...s, openSwapStateTx: record };
     case "settlement":
       return { ...s, settlementTx: record };
+    case "recovery":
+      return { ...s, recoveryTx: record };
   }
 }
 
