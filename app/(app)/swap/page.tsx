@@ -26,6 +26,10 @@ import {
   toBaseUnits,
   type ShieldTokenId,
 } from "@/lib/cloak/tokens";
+import {
+  appendPayment,
+  formatBaseUnits as formatBaseUnitsString,
+} from "@/lib/cloak/payment-history";
 import { useSwap, type SwapTxRecord } from "@/lib/cloak/use-swap";
 import {
   applySlippageBps,
@@ -81,6 +85,14 @@ export default function SwapPage() {
 
   const wallet = useWallet();
   const swap = useSwap();
+  const [lastSwap, setLastSwap] = React.useState<{
+    sellToken: ShieldTokenId;
+    buyToken: ShieldTokenId;
+    sellAmountRaw: string;
+    sellDecimals: number;
+    minOutRaw: string;
+    outDecimals: number;
+  } | null>(null);
   const sellToken = React.useMemo(() => getShieldToken(sell), [sell]);
   const buyToken = React.useMemo(() => getShieldToken(buy), [buy]);
   const sellDecimals = sellToken?.decimals ?? 9;
@@ -166,6 +178,26 @@ export default function SwapPage() {
       />
 
       <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 py-10 sm:px-8 lg:grid-cols-[1.4fr_1fr]">
+        {swap.status === "success" && lastSwap ? (
+          <SwapSuccessCard
+            sellToken={lastSwap.sellToken}
+            buyToken={lastSwap.buyToken}
+            sellAmountRaw={lastSwap.sellAmountRaw}
+            sellDecimals={lastSwap.sellDecimals}
+            minOutRaw={lastSwap.minOutRaw}
+            outDecimals={lastSwap.outDecimals}
+            recipientAta={swap.recipientAta}
+            depositSignature={swap.depositTx.signature}
+            swapSignature={swap.openSwapStateTx.signature}
+            settlementSignature={swap.settlementTx.signature}
+            onSwapAnother={() => {
+              swap.reset();
+              setLastSwap(null);
+              setAmount("");
+              setAmountTouched(false);
+            }}
+          />
+        ) : (
         <motion.form
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -174,13 +206,50 @@ export default function SwapPage() {
           onSubmit={async (e) => {
             e.preventDefault();
             setAmountTouched(true);
-            if (!canSubmit || !sellToken || !buyToken) return;
+            if (!canSubmit || !sellToken || !buyToken || !wallet.publicKey) {
+              return;
+            }
+            const sellAmountBaseUnits = toBaseUnits(amount, sellToken.decimals);
+            const senderBase58 = wallet.publicKey.toBase58();
+            setLastSwap({
+              sellToken: sell,
+              buyToken: buy,
+              sellAmountRaw: sellAmountBaseUnits.toString(),
+              sellDecimals: sellToken.decimals,
+              minOutRaw: minOutputBaseUnits.toString(),
+              outDecimals: buyToken.decimals,
+            });
             try {
-              await swap.send({
-                sellAmountBaseUnits: toBaseUnits(amount, sellToken.decimals),
+              const result = await swap.send({
+                sellAmountBaseUnits,
                 sellMint: sellToken.mint,
                 buyMint: buyToken.mint,
                 minOutputBaseUnits,
+              });
+              appendPayment(senderBase58, solanaConfig.cluster, {
+                id: result.swapSignature,
+                cluster: solanaConfig.cluster,
+                sender: senderBase58,
+                recipient: result.recipientAta,
+                token: sell,
+                mint: sellToken.mint.toBase58(),
+                decimals: sellToken.decimals,
+                amountRaw: sellAmountBaseUnits.toString(),
+                netRaw: sellAmountBaseUnits.toString(),
+                depositSignature: result.depositSignature,
+                withdrawSignature:
+                  result.settlementSignature ?? result.swapSignature,
+                timestamp: Date.now(),
+                source: "swap",
+                swap: {
+                  outputToken: buy,
+                  outputMint: buyToken.mint.toBase58(),
+                  outputDecimals: buyToken.decimals,
+                  outAmountRaw: minOutputBaseUnits.toString(),
+                  minOutRaw: minOutputBaseUnits.toString(),
+                  swapSignature: result.swapSignature,
+                  settlementSignature: result.settlementSignature,
+                },
               });
             } catch {
               // surfaced via swap.error
@@ -334,6 +403,7 @@ export default function SwapPage() {
             <p className="text-[12px] text-destructive">{quoteError.message}</p>
           )}
         </motion.form>
+        )}
 
         <motion.aside
           initial={{ opacity: 0, y: 8 }}
@@ -665,6 +735,159 @@ function SwapTxPill({ status }: { status: SwapTxRecord["status"] }) {
       <span aria-hidden="true" className={dotCls} />
       <span>{label}</span>
     </span>
+  );
+}
+
+function SwapSuccessCard({
+  sellToken,
+  buyToken,
+  sellAmountRaw,
+  sellDecimals,
+  minOutRaw,
+  outDecimals,
+  recipientAta,
+  depositSignature,
+  swapSignature,
+  settlementSignature,
+  onSwapAnother,
+}: {
+  sellToken: ShieldTokenId;
+  buyToken: ShieldTokenId;
+  sellAmountRaw: string;
+  sellDecimals: number;
+  minOutRaw: string;
+  outDecimals: number;
+  recipientAta: string | null;
+  depositSignature: string | null;
+  swapSignature: string | null;
+  settlementSignature: string | null;
+  onSwapAnother: () => void;
+}) {
+  const sellDisplay = formatBaseUnitsString(sellAmountRaw, sellDecimals);
+  const minOutDisplay = formatBaseUnitsString(minOutRaw, outDecimals);
+  const settled = settlementSignature !== null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
+      className="flex flex-col gap-6 rounded-2xl border border-border bg-card/60 p-6 sm:p-8"
+    >
+      <div className="flex items-start gap-3">
+        <motion.span
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{
+            duration: 0.32,
+            ease: [0.22, 1, 0.36, 1],
+            delay: 0.05,
+          }}
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"
+          aria-hidden="true"
+        >
+          <HugeiconsIcon
+            icon={CheckmarkCircle01Icon}
+            size={18}
+            strokeWidth={2.2}
+          />
+        </motion.span>
+        <div className="flex flex-col">
+          <h2 className="text-[18px] font-medium tracking-tight text-foreground">
+            {settled ? "Swap settled" : "Swap submitted"}
+          </h2>
+          <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+            You sold{" "}
+            <span className="font-medium text-foreground">
+              {sellDisplay} {sellToken}
+            </span>{" "}
+            for at least{" "}
+            <span className="font-medium text-yellow-600 dark:text-yellow-400">
+              {minOutDisplay} {buyToken}
+            </span>
+            . The chain shows a generic shield-pool tx, not your trade.
+          </p>
+          {recipientAta && (
+            <p className="mt-1 font-mono text-[11.5px] text-muted-foreground">
+              to ATA {shortSig(recipientAta)}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-background/40">
+        <SwapSuccessTxRow
+          label="Shield tx"
+          hint="Your deposit into the pool"
+          signature={depositSignature}
+        />
+        <SwapSuccessTxRow
+          label="Open swap state"
+          hint="Tx1 verifies your private input"
+          signature={swapSignature}
+        />
+        <SwapSuccessTxRow
+          label="Settlement"
+          hint={
+            settled
+              ? "Tx2 trade landed and paid your ATA"
+              : "Tx2 pending — relay still settling"
+          }
+          signature={settlementSignature}
+          pending={!settled}
+        />
+      </div>
+
+      <FancyButton
+        type="button"
+        variant="primary"
+        size="lg"
+        className="self-start"
+        onClick={onSwapAnother}
+      >
+        Swap another
+        <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2.2} />
+      </FancyButton>
+    </motion.div>
+  );
+}
+
+function SwapSuccessTxRow({
+  label,
+  hint,
+  signature,
+  pending,
+}: {
+  label: string;
+  hint: string;
+  signature: string | null;
+  pending?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-3">
+      <div className="flex flex-col">
+        <span className="text-[12.5px] font-medium text-foreground">
+          {label}
+        </span>
+        <span className="text-[11px] text-muted-foreground">{hint}</span>
+      </div>
+      {signature ? (
+        <a
+          href={solscanTxUrl(signature)}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-card/60 px-2.5 py-1 font-mono text-[11.5px] text-foreground transition-colors hover:bg-secondary"
+        >
+          <span>{shortSig(signature)}</span>
+          <span aria-hidden="true">↗</span>
+          <span className="sr-only">Open on Solscan</span>
+        </a>
+      ) : (
+        <span className="font-mono text-[11.5px] text-muted-foreground">
+          {pending ? "pending" : "·"}
+        </span>
+      )}
+    </div>
   );
 }
 

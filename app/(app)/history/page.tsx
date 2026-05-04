@@ -7,6 +7,7 @@ import {
   ArrowUp01Icon,
   Calendar03Icon,
   Coins01Icon,
+  Exchange01Icon,
   EyeIcon,
   Loading03Icon,
   Refresh01Icon,
@@ -62,6 +63,7 @@ type FilterId = "all" | PaymentSource | "received";
 const FILTERS: { id: FilterId; label: string }[] = [
   { id: "all", label: "All" },
   { id: "pay", label: "Pay" },
+  { id: "swap", label: "Swap" },
   { id: "payroll", label: "Payroll" },
   { id: "recurring", label: "Recurring" },
   { id: "received", label: "Received" },
@@ -117,7 +119,7 @@ export default function HistoryPage() {
     fromMs !== Number.NEGATIVE_INFINITY || toMs !== Number.POSITIVE_INFINITY;
 
   const sourceCounts = React.useMemo(() => {
-    const counts = { pay: 0, payroll: 0, recurring: 0 };
+    const counts = { pay: 0, payroll: 0, recurring: 0, swap: 0 };
     for (const r of records) counts[inferPaymentSource(r)] += 1;
     return counts;
   }, [records]);
@@ -258,7 +260,11 @@ export default function HistoryPage() {
         <ul className="flex flex-col gap-2">
           {pagedGroups.map((g, i) =>
             g.kind === "single" ? (
-              <SingleRow key={g.record.id} tx={g.record} index={i} />
+              g.record.swap ? (
+                <SwapRow key={g.record.id} tx={g.record} index={i} />
+              ) : (
+                <SingleRow key={g.record.id} tx={g.record} index={i} />
+              )
             ) : g.kind === "batch" ? (
               <BatchRow
                 key={g.batchId}
@@ -410,11 +416,11 @@ function FilterTabs({
 }: {
   value: FilterId;
   onChange: (id: FilterId) => void;
-  counts: { pay: number; payroll: number; recurring: number };
+  counts: { pay: number; payroll: number; recurring: number; swap: number };
   receivedCount: number;
 }) {
   const totalAll =
-    counts.pay + counts.payroll + counts.recurring + receivedCount;
+    counts.pay + counts.payroll + counts.recurring + counts.swap + receivedCount;
 
   const countFor = (id: FilterId): number => {
     if (id === "all") return totalAll;
@@ -844,8 +850,17 @@ function groupOutgoing(records: PaymentRecord[]): Group[] {
   // payroll batch (one batch deposit, N recipients sharing it). Sig that
   // appears once is a single /pay row. This works for both old records
   // (no batchId field) and new records (where batchId === depositSignature).
-  const bySig = new Map<string, PaymentRecord[]>();
+  // Swaps are always single rows — never grouped, even if they coincidentally
+  // share a deposit signature.
+  const swaps: PaymentRecord[] = [];
+  const grouped: PaymentRecord[] = [];
   for (const r of records) {
+    if (r.swap) swaps.push(r);
+    else grouped.push(r);
+  }
+
+  const bySig = new Map<string, PaymentRecord[]>();
+  for (const r of grouped) {
     const sig = r.batchId ?? r.depositSignature;
     const arr = bySig.get(sig);
     if (arr) arr.push(r);
@@ -854,7 +869,7 @@ function groupOutgoing(records: PaymentRecord[]): Group[] {
 
   const seen = new Set<string>();
   const groups: Group[] = [];
-  for (const r of records) {
+  for (const r of grouped) {
     const sig = r.batchId ?? r.depositSignature;
     if (seen.has(sig)) continue;
     seen.add(sig);
@@ -864,6 +879,9 @@ function groupOutgoing(records: PaymentRecord[]): Group[] {
     } else {
       groups.push({ kind: "single", record: bucket[0] });
     }
+  }
+  for (const r of swaps) {
+    groups.push({ kind: "single", record: r });
   }
   return groups;
 }
@@ -878,11 +896,19 @@ function groupTimestamp(g: Group): number {
 }
 
 function matches(r: PaymentRecord, q: string): boolean {
-  return (
+  if (
     r.recipient.toLowerCase().includes(q) ||
     r.depositSignature.toLowerCase().includes(q) ||
     r.withdrawSignature.toLowerCase().includes(q)
-  );
+  ) {
+    return true;
+  }
+  if (r.swap) {
+    if (r.swap.swapSignature.toLowerCase().includes(q)) return true;
+    if (r.swap.settlementSignature?.toLowerCase().includes(q)) return true;
+    if (r.swap.outputToken.toLowerCase().includes(q)) return true;
+  }
+  return false;
 }
 
 function matchesReceived(tx: ReceivedTransaction, q: string): boolean {
@@ -946,6 +972,75 @@ function SingleRow({ tx, index }: { tx: PaymentRecord; index: number }) {
           className="text-muted-foreground transition-colors hover:text-primary"
           aria-label="Open payout transaction on Solscan"
           title="Open payout transaction on Solscan"
+        >
+          <HugeiconsIcon icon={EyeIcon} size={15} strokeWidth={1.8} />
+        </a>
+      </div>
+    </motion.li>
+  );
+}
+
+function SwapRow({ tx, index }: { tx: PaymentRecord; index: number }) {
+  const swap = tx.swap!;
+  const sigForLink = swap.settlementSignature ?? swap.swapSignature;
+  const sigShort = `${sigForLink.slice(0, 4)}…${sigForLink.slice(-4)}`;
+  const sellFormatted = formatBaseUnits(tx.amountRaw, tx.decimals);
+  const buyFormatted = formatBaseUnits(swap.outAmountRaw, swap.outputDecimals);
+  const dateLabel = formatDate(tx.timestamp);
+  const settled = swap.settlementSignature !== null;
+
+  return (
+    <motion.li
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        delay: 0.05 + Math.min(index, 8) * 0.04,
+        duration: 0.28,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+      className="group flex items-center gap-4 rounded-xl border border-border bg-card/40 px-4 py-3.5 transition-colors hover:border-primary/30 hover:bg-card/70"
+    >
+      <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+        <HugeiconsIcon icon={Exchange01Icon} size={14} strokeWidth={2} />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate font-mono text-[13px] text-foreground">
+            {tx.token} → {swap.outputToken}
+          </p>
+          <span className="hidden font-mono text-[10.5px] text-muted-foreground sm:inline">
+            {sigShort}
+          </span>
+        </div>
+        <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+          <span>{dateLabel}</span>
+          <DirChip direction="out" />
+          <TypeChip>Swap</TypeChip>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className="text-right">
+          <p className="font-mono text-[13.5px] text-foreground">
+            −{sellFormatted}{" "}
+            <span className="text-muted-foreground">{tx.token}</span>
+          </p>
+          <p className="font-mono text-[12px] text-emerald-400">
+            +{buyFormatted}{" "}
+            <span className="text-muted-foreground">{swap.outputToken}</span>
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            {settled ? "Settled" : "Pending settlement"}
+          </p>
+        </div>
+        <a
+          href={solscanTxUrl(sigForLink)}
+          target="_blank"
+          rel="noreferrer"
+          className="text-muted-foreground transition-colors hover:text-primary"
+          aria-label="Open swap transaction on Solscan"
+          title="Open swap transaction on Solscan"
         >
           <HugeiconsIcon icon={EyeIcon} size={15} strokeWidth={1.8} />
         </a>

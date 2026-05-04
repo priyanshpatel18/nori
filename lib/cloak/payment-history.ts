@@ -4,7 +4,21 @@ import type { ShieldTokenId } from "./tokens";
 const STORAGE_PREFIX = "cloak:payments:v1";
 const MAX_RECORDS = 200;
 
-export type PaymentSource = "pay" | "payroll" | "recurring";
+export type PaymentSource = "pay" | "payroll" | "recurring" | "swap";
+
+export type SwapDetails = {
+  outputToken: ShieldTokenId;
+  outputMint: string;
+  outputDecimals: number;
+  /** Net buy-side base units (settled amount when known, else min-output). */
+  outAmountRaw: string;
+  /** Slippage-protected minimum, base units. */
+  minOutRaw: string;
+  /** Tx1: open-swap-state. */
+  swapSignature: string;
+  /** Tx2: settlement signature. `null` while pending. */
+  settlementSignature: string | null;
+};
 
 export type PaymentRecord = {
   id: string;
@@ -25,11 +39,15 @@ export type PaymentRecord = {
   // Where this payment originated. Older records persisted before this field
   // existed are inferred via inferPaymentSource().
   source?: PaymentSource;
+  // Present iff this row is a swap. `token`/`mint`/`decimals`/`amountRaw`
+  // describe the sell side; `swap` describes the buy side and the two-tx flow.
+  swap?: SwapDetails;
 };
 
 /** Infer the source of a record that pre-dates the explicit `source` field. */
 export function inferPaymentSource(r: PaymentRecord): PaymentSource {
   if (r.source) return r.source;
+  if (r.swap) return "swap";
   return r.batchId ? "payroll" : "pay";
 }
 
@@ -149,7 +167,7 @@ export function clearPayments(sender: string, cluster: SolanaCluster): void {
 function isPaymentRecord(value: unknown): value is PaymentRecord {
   if (!value || typeof value !== "object") return false;
   const r = value as Record<string, unknown>;
-  return (
+  const baseOk =
     typeof r.id === "string" &&
     typeof r.cluster === "string" &&
     typeof r.sender === "string" &&
@@ -161,7 +179,20 @@ function isPaymentRecord(value: unknown): value is PaymentRecord {
     typeof r.netRaw === "string" &&
     typeof r.depositSignature === "string" &&
     typeof r.withdrawSignature === "string" &&
-    typeof r.timestamp === "number"
+    typeof r.timestamp === "number";
+  if (!baseOk) return false;
+  if (r.swap === undefined) return true;
+  if (!r.swap || typeof r.swap !== "object") return false;
+  const s = r.swap as Record<string, unknown>;
+  return (
+    typeof s.outputToken === "string" &&
+    typeof s.outputMint === "string" &&
+    typeof s.outputDecimals === "number" &&
+    typeof s.outAmountRaw === "string" &&
+    typeof s.minOutRaw === "string" &&
+    typeof s.swapSignature === "string" &&
+    (s.settlementSignature === null ||
+      typeof s.settlementSignature === "string")
   );
 }
 
