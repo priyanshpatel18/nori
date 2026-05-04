@@ -202,6 +202,21 @@ export function useSwapQuote(input: UseSwapQuoteInput): UseSwapQuoteResult {
   };
 }
 
+/**
+ * Apply a slippage tolerance (in basis points) to an output amount.
+ * `minOutput = floor(outAmount * (10_000 - slippageBps) / 10_000)`.
+ */
+export function applySlippageBps(
+  outAmount: bigint,
+  slippageBps: number,
+): bigint {
+  if (!Number.isFinite(slippageBps) || slippageBps < 0) return outAmount;
+  if (slippageBps >= 10_000) return 0n;
+  const bps = BigInt(Math.floor(slippageBps));
+  const min = (outAmount * (10_000n - bps)) / 10_000n;
+  return min < 0n ? 0n : min;
+}
+
 export function formatBaseUnits(
   amount: bigint,
   decimals: number,

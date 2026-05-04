@@ -9,25 +9,34 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+import { Progress as ProgressPrimitive } from "@base-ui/react/progress";
 import * as React from "react";
 
 import { PageHeader } from "@/components/app-shell/page-header";
+import { SlippageInput } from "@/components/cloak/slippage-input";
 import { TokenLogo, TokenSelector } from "@/components/cloak/token-selector";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ProgressIndicator, ProgressTrack } from "@/components/ui/progress";
 import {
   getShieldToken,
   listShieldTokens,
+  toBaseUnits,
   type ShieldTokenId,
 } from "@/lib/cloak/tokens";
+import { useSwap } from "@/lib/cloak/use-swap";
 import {
+  applySlippageBps,
   formatBaseUnits,
   useSwapQuote,
 } from "@/lib/cloak/use-swap-quote";
 import { solanaConfig } from "@/lib/solana/config";
+import { solscanTxUrl } from "@/lib/solana/explorer";
 import { cn } from "@/lib/utils";
+
+const DEFAULT_SLIPPAGE_BPS = 50;
 
 type AmountError =
   | { kind: "format" }
@@ -68,9 +77,12 @@ export default function SwapPage() {
   const [buy, setBuy] = React.useState<ShieldTokenId>(defaultPair.buy);
   const [amount, setAmount] = React.useState("");
   const [amountTouched, setAmountTouched] = React.useState(false);
+  const [slippageBps, setSlippageBps] = React.useState(DEFAULT_SLIPPAGE_BPS);
 
   const wallet = useWallet();
+  const swap = useSwap();
   const sellToken = React.useMemo(() => getShieldToken(sell), [sell]);
+  const buyToken = React.useMemo(() => getShieldToken(buy), [buy]);
   const sellDecimals = sellToken?.decimals ?? 9;
 
   const amountError = React.useMemo(
@@ -112,7 +124,30 @@ export default function SwapPage() {
       ? formatBaseUnits(quote.outAmountBaseUnits, quote.outDecimals)
       : "";
 
-  const canSubmit = false; // Wired in once private-swap path lands.
+  const minOutputBaseUnits = quote
+    ? applySlippageBps(quote.outAmountBaseUnits, slippageBps)
+    : 0n;
+
+  const minOutputDisplay =
+    quote && minOutputBaseUnits > 0n
+      ? formatBaseUnits(minOutputBaseUnits, quote.outDecimals)
+      : "—";
+
+  const submitting =
+    swap.status === "deposit-proof" ||
+    swap.status === "deposit-submit" ||
+    swap.status === "swap-proof" ||
+    swap.status === "swap-submit";
+
+  const canSubmit =
+    wallet.connected &&
+    !submitting &&
+    amountValid &&
+    !!sellToken &&
+    !!buyToken &&
+    status === "ready" &&
+    quote !== null &&
+    minOutputBaseUnits > 0n;
 
   return (
     <>
@@ -128,9 +163,20 @@ export default function SwapPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
           className="flex flex-col gap-3 rounded-2xl border border-border bg-card/60 p-6 sm:p-8"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             setAmountTouched(true);
+            if (!canSubmit || !sellToken || !buyToken) return;
+            try {
+              await swap.send({
+                sellAmountBaseUnits: toBaseUnits(amount, sellToken.decimals),
+                sellMint: sellToken.mint,
+                buyMint: buyToken.mint,
+                minOutputBaseUnits,
+              });
+            } catch {
+              // surfaced via swap.error
+            }
           }}
           noValidate
         >
@@ -235,6 +281,19 @@ export default function SwapPage() {
             </div>
           </div>
 
+          <div className="mt-2 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-muted-foreground">Slippage tolerance</Label>
+              <span className="font-mono text-[11.5px] text-muted-foreground">
+                {(slippageBps / 100).toFixed(slippageBps < 100 ? 2 : 1)}%
+              </span>
+            </div>
+            <SlippageInput
+              valueBps={slippageBps}
+              onChangeBps={setSlippageBps}
+            />
+          </div>
+
           <FancyButton
             type="submit"
             variant="primary"
@@ -242,9 +301,26 @@ export default function SwapPage() {
             className="mt-2 self-start"
             disabled={!canSubmit}
           >
-            {wallet.connected ? "Coming soon" : "Connect wallet"}
+            {submitButtonLabel(swap.status, wallet.connected, status === "loading")}
             <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2.2} />
           </FancyButton>
+
+          <SwapProgress
+            show={submitting}
+            percent={swap.uiPercent}
+            message={swap.progress ?? phaseLabel(swap.status)}
+          />
+
+          {swap.status === "error" && swap.error && (
+            <p className="text-[12px] text-destructive">{swap.error.message}</p>
+          )}
+
+          {swap.status === "success" && swap.swapSignature && (
+            <SuccessFootnote
+              swapSignature={swap.swapSignature}
+              depositSignature={swap.depositSignature}
+            />
+          )}
 
           {quoteError && (
             <p className="text-[12px] text-destructive">{quoteError.message}</p>
@@ -282,7 +358,15 @@ export default function SwapPage() {
               <Row
                 label="Route"
                 value={quote ? quote.route : "—"}
+              />
+              <Row
+                label="Min received"
+                value={
+                  quote ? `${minOutputDisplay} ${buy}` : "—"
+                }
+                hint={`${(slippageBps / 100).toFixed(2)}% slippage`}
                 emphasis
+                accent
               />
             </dl>
             <p className="mt-3 text-[11.5px] text-muted-foreground">
@@ -352,11 +436,13 @@ function Row({
   value,
   hint,
   emphasis,
+  accent,
 }: {
   label: string;
   value: string;
   hint?: string;
   emphasis?: boolean;
+  accent?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between py-2.5">
@@ -371,11 +457,129 @@ function Row({
       <dd
         className={cn(
           "font-mono",
-          emphasis ? "text-foreground" : "text-foreground/80",
+          accent
+            ? "font-medium text-yellow-600 dark:text-yellow-400"
+            : emphasis
+              ? "text-foreground"
+              : "text-foreground/80",
         )}
       >
         {value}
       </dd>
     </div>
   );
+}
+
+function submitButtonLabel(
+  status: ReturnType<typeof useSwap>["status"],
+  connected: boolean,
+  quoting: boolean,
+): string {
+  if (!connected) return "Connect wallet to swap";
+  switch (status) {
+    case "deposit-proof":
+      return "Generating proof (1/2)…";
+    case "deposit-submit":
+      return "Shielding…";
+    case "swap-proof":
+      return "Generating proof (2/2)…";
+    case "swap-submit":
+      return "Submitting swap…";
+    case "success":
+      return "Swap another";
+    default:
+      return quoting ? "Quoting…" : "Swap privately";
+  }
+}
+
+function phaseLabel(status: ReturnType<typeof useSwap>["status"]): string {
+  switch (status) {
+    case "deposit-proof":
+      return "Generating deposit proof";
+    case "deposit-submit":
+      return "Shielding into pool";
+    case "swap-proof":
+      return "Generating swap proof";
+    case "swap-submit":
+      return "Submitting swap to relay";
+    default:
+      return "Working";
+  }
+}
+
+function SwapProgress({
+  show,
+  percent,
+  message,
+}: {
+  show: boolean;
+  percent: number;
+  message: string;
+}) {
+  const display = Math.round(Math.max(0, Math.min(100, percent)));
+  return (
+    <AnimatePresence initial={false}>
+      {show && (
+        <motion.div
+          key="swap-progress"
+          initial={{ opacity: 0, y: -2 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -2 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="flex flex-col gap-1.5"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-center justify-between text-[11.5px] text-muted-foreground">
+            <span className="truncate pr-2">{message}</span>
+            <span className="font-mono tabular-nums text-foreground/80">
+              {display}%
+            </span>
+          </div>
+          <ProgressPrimitive.Root value={display}>
+            <ProgressTrack className="h-1.5 bg-secondary/70">
+              <ProgressIndicator />
+            </ProgressTrack>
+          </ProgressPrimitive.Root>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function SuccessFootnote({
+  swapSignature,
+  depositSignature,
+}: {
+  swapSignature: string;
+  depositSignature: string | null;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-[11.5px] text-muted-foreground">
+      <span>Swap submitted.</span>
+      <a
+        href={solscanTxUrl(swapSignature)}
+        target="_blank"
+        rel="noreferrer"
+        className="rounded-md border border-border bg-card/60 px-2 py-0.5 font-mono text-foreground transition-colors hover:bg-secondary"
+      >
+        swap {shortSig(swapSignature)} ↗
+      </a>
+      {depositSignature && (
+        <a
+          href={solscanTxUrl(depositSignature)}
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-md border border-border bg-card/60 px-2 py-0.5 font-mono text-foreground transition-colors hover:bg-secondary"
+        >
+          shield {shortSig(depositSignature)} ↗
+        </a>
+      )}
+    </div>
+  );
+}
+
+function shortSig(sig: string): string {
+  if (sig.length <= 10) return sig;
+  return `${sig.slice(0, 4)}…${sig.slice(-4)}`;
 }
