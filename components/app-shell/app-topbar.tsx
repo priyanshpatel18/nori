@@ -9,6 +9,10 @@ import { ConnectButton } from "@/components/solana/connect-button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
 const TITLES: Record<string, { title: string; subtitle: string }> = {
+  "/shield": {
+    title: "Shield",
+    subtitle: "Your shielded balance: deposit, send, withdraw.",
+  },
   "/pay": {
     title: "Pay",
     subtitle: "Send a private payment in one transaction.",

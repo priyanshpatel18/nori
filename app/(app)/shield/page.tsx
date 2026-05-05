@@ -13,9 +13,11 @@ import * as React from "react";
 import {
   BalancesIcon,
   DownArrowIcon,
+  RightArrowIcon,
   SendIcon,
   ShieldIcon,
   UpArrowIcon,
+  VerifiedTickIcon,
   type IconProps,
 } from "@/components/Icons";
 import { PageHeader } from "@/components/app-shell/page-header";
@@ -109,10 +111,20 @@ export default function ShieldPage() {
     ? balance.unspent.filter((u) => u.mint === token.mint.toBase58())
     : [];
 
+  type LastSubmit = {
+    action: Action;
+    amount: string;
+    tokenId: ShieldTokenId;
+    decimals: number;
+    recipient: string;
+  };
+  const [lastSubmit, setLastSubmit] = React.useState<LastSubmit | null>(null);
+
   const reset = () => {
     shield.reset();
     setAmount("");
     setRecipient("");
+    setLastSubmit(null);
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -121,15 +133,25 @@ export default function ShieldPage() {
     if (action === "send" && !recipientValid) return;
 
     const amountBaseUnits = toBaseUnits(amount, token.decimals);
+    const recipientPk =
+      action === "deposit"
+        ? wallet.publicKey
+        : action === "withdraw"
+          ? wallet.publicKey
+          : new PublicKey(recipient.trim());
+
+    setLastSubmit({
+      action,
+      amount,
+      tokenId: token.id,
+      decimals: token.decimals,
+      recipient: recipientPk.toBase58(),
+    });
 
     try {
       if (action === "deposit") {
         await shield.deposit({ amountBaseUnits, mint: token.mint });
       } else {
-        const recipientPk =
-          action === "withdraw"
-            ? wallet.publicKey
-            : new PublicKey(recipient.trim());
         await shield.withdraw({
           amountBaseUnits,
           mint: token.mint,
@@ -205,9 +227,10 @@ export default function ShieldPage() {
             {ACTIONS.find((a) => a.id === action)?.description}
           </p>
 
-          {isSuccess && shield.state.signature ? (
+          {isSuccess && shield.state.signature && lastSubmit ? (
             <SuccessBlock
-              action={action}
+              submit={lastSubmit}
+              walletPubkey={wallet.publicKey?.toBase58() ?? null}
               signature={shield.state.signature}
               onAgain={reset}
             />
@@ -381,7 +404,7 @@ export default function ShieldPage() {
             )}
           </div>
           <div className="mt-2 flex items-start gap-2 rounded-xl border border-border/60 bg-card/30 p-3 text-[12px] text-muted-foreground">
-            <BalancesIcon size={14} className="mt-px" />
+            <BalancesIcon size={20} className="mt-0.5 shrink-0 text-primary" />
             <span>
               Balance is reconstructed from notes saved locally on this device.
               Spending requires the wallet that deposited them.
@@ -430,50 +453,138 @@ function ProcessingBlock({
 }
 
 function SuccessBlock({
-  action,
+  submit,
+  walletPubkey,
   signature,
   onAgain,
 }: {
-  action: Action;
+  submit: {
+    action: Action;
+    amount: string;
+    tokenId: ShieldTokenId;
+    decimals: number;
+    recipient: string;
+  };
+  walletPubkey: string | null;
   signature: string;
   onAgain: () => void;
 }) {
-  const label =
+  const { action, amount, tokenId, recipient } = submit;
+  const headline =
     action === "deposit"
-      ? "Deposit confirmed"
+      ? "Shielded"
       : action === "withdraw"
-        ? "Withdrawal confirmed"
-        : "Send confirmed";
+        ? "Withdrawn"
+        : "Sent privately";
+  const subheadline =
+    action === "deposit"
+      ? "Now spendable from your shielded balance."
+      : action === "withdraw"
+        ? "Funds are back in your wallet."
+        : "The recipient sees the payout, not your wallet.";
+
+  const recipientLabel =
+    action === "deposit"
+      ? "From"
+      : action === "withdraw"
+        ? "To your wallet"
+        : "To";
+  const isOwnWallet = walletPubkey === recipient;
+
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-primary/40 bg-primary/5 p-4">
-      <div className="flex items-center gap-2 text-[14px] font-medium text-foreground">
-        <HugeiconsIcon
-          icon={CheckmarkCircle01Icon}
-          size={16}
-          strokeWidth={2}
-          className="text-primary"
-        />
-        {label}
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+      className="flex flex-col gap-5 rounded-2xl border border-primary/30 bg-primary/5 p-5 sm:p-6"
+    >
+      <div className="flex items-start gap-3">
+        <motion.span
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1], delay: 0.05 }}
+          className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/15 text-primary"
+          aria-hidden="true"
+        >
+          <VerifiedTickIcon size={18} />
+        </motion.span>
+        <div className="flex flex-col">
+          <h2 className="text-[17px] font-medium tracking-tight text-foreground">
+            {headline}{" "}
+            <span className="font-mono text-yellow-600 tabular-nums dark:text-yellow-400">
+              {amount} {tokenId}
+            </span>
+          </h2>
+          <p className="mt-1 text-[12.5px] leading-5 text-muted-foreground">
+            {subheadline}
+          </p>
+        </div>
       </div>
-      <a
-        href={solscanTxUrl(signature)}
-        target="_blank"
-        rel="noreferrer"
-        className="block break-all rounded-lg border border-border bg-background/60 px-3 py-2 font-mono text-[12px] text-muted-foreground transition-colors hover:text-foreground"
-      >
-        {signature}
-      </a>
+
+      <dl className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-background/40 text-[12.5px]">
+        <SuccessRow label={recipientLabel}>
+          <span className="font-mono text-foreground">
+            {shortAddress(recipient)}
+          </span>
+          {isOwnWallet && (
+            <span className="ml-2 font-mono text-[10px] uppercase tracking-[0.18em] text-primary/80">
+              You
+            </span>
+          )}
+        </SuccessRow>
+        <SuccessRow label="Solana tx">
+          <a
+            href={solscanTxUrl(signature)}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-card/60 px-2.5 py-1 font-mono text-[11.5px] text-foreground transition-colors hover:bg-secondary"
+          >
+            <span>{shortSig(signature)}</span>
+            <span aria-hidden="true">↗</span>
+            <span className="sr-only">Open on Solscan</span>
+          </a>
+        </SuccessRow>
+      </dl>
+
       <FancyButton
         type="button"
-        variant="neutral"
-        size="md"
+        variant="primary"
+        size="lg"
         className="self-start"
         onClick={onAgain}
       >
         Run another
+        <RightArrowIcon size={14} />
       </FancyButton>
+    </motion.div>
+  );
+}
+
+function SuccessRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+      <dt className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="flex items-center">{children}</dd>
     </div>
   );
+}
+
+function shortAddress(s: string): string {
+  if (s.length <= 12) return s;
+  return `${s.slice(0, 6)}…${s.slice(-4)}`;
+}
+
+function shortSig(s: string): string {
+  if (s.length <= 14) return s;
+  return `${s.slice(0, 8)}…${s.slice(-6)}`;
 }
 
 function submitButtonLabel(
@@ -482,14 +593,13 @@ function submitButtonLabel(
   connected: boolean,
 ): string {
   if (!connected) return "Connect wallet";
-  if (processing) return "Working…";
   switch (action) {
     case "deposit":
-      return "Deposit to shielded balance";
+      return processing ? "Depositing…" : "Deposit";
     case "send":
-      return "Send privately";
+      return processing ? "Sending…" : "Send";
     case "withdraw":
-      return "Withdraw to wallet";
+      return processing ? "Withdrawing…" : "Withdraw";
   }
 }
 
