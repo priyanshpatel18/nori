@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  computeUtxoCommitment,
   createUtxo,
   createZeroUtxo,
   deriveUtxoKeypairFromSpendKey,
+  deriveViewKey,
   fullWithdraw,
   partialWithdraw,
   transact,
@@ -18,6 +20,10 @@ import {
 } from "@solana/web3.js";
 
 import { applyBufferPolyfill } from "@/lib/buffer-polyfill";
+import {
+  buildRecoverableNoteB64,
+  RECOVERABLE_SHIELDS_ENABLED,
+} from "@/lib/cloak/recoverable-notes";
 import {
   appendUtxos,
   hydrateUtxo,
@@ -92,6 +98,27 @@ export async function shieldDeposit(
   const output = await createUtxo(amountBaseUnits, ownerKeypair, mint);
   const zero = await createZeroUtxo(mint);
 
+  // When recoverable shields are enabled, attach a rich `EncryptedNote`
+  // payload that carries the full NoteData (amount, blinding, per-UTXO
+  // private key, commitment) encrypted to the wallet's view key. This is
+  // what makes a future device able to rebuild a *spendable* UTXO from
+  // chain alone. Trade-off: passing `encryptedNotes` replaces the SDK's
+  // auto-generated compact chain note, so this shield won't appear in the
+  // compact-note scanner used by `useOnChainBalance` / scan-received.
+  // Discovery happens through the recoverable-notes scanner instead.
+  let encryptedNotes: string[] | undefined;
+  if (RECOVERABLE_SHIELDS_ENABLED) {
+    const ownerViewKey = deriveViewKey(spendKey.sk_spend);
+    const commitment = await computeUtxoCommitment(output);
+    encryptedNotes = [
+      buildRecoverableNoteB64({
+        output,
+        commitment,
+        ownerViewKey,
+      }),
+    ];
+  }
+
   let phase: ShieldPhase = "building-proof";
 
   const result = await transact(
@@ -110,6 +137,7 @@ export async function shieldDeposit(
       signTransaction,
       signMessage,
       enforceViewingKeyRegistration: false,
+      ...(encryptedNotes ? { encryptedNotes } : {}),
       onProgress: (status) => {
         if (phase === "building-proof" && /submit|send|broadcast/i.test(status)) {
           phase = "submitting";

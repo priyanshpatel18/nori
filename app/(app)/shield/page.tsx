@@ -3,6 +3,8 @@
 import {
   ArrowRight01Icon,
   CheckmarkCircle01Icon,
+  Loading03Icon,
+  Refresh01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -22,6 +24,7 @@ import {
 } from "@/components/Icons";
 import { PageHeader } from "@/components/app-shell/page-header";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
+import { Button } from "@/components/ui/button";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +34,8 @@ import {
   toBaseUnits,
   type ShieldTokenId,
 } from "@/lib/cloak/tokens";
+import { useOnChainBalance } from "@/lib/cloak/use-onchain-balance";
+import { useRecoverSpendable } from "@/lib/cloak/use-recover-spendable";
 import { useShield } from "@/lib/cloak/use-shield";
 import { useShieldedBalance } from "@/lib/cloak/use-shielded-balance";
 import { solanaConfig } from "@/lib/solana/config";
@@ -74,6 +79,8 @@ const TOKEN_LOGO: Record<ShieldTokenId, React.ComponentType<{ className?: string
 export default function ShieldPage() {
   const wallet = useWallet();
   const balance = useShieldedBalance();
+  const onChain = useOnChainBalance();
+  const recover = useRecoverSpendable();
   const shield = useShield();
 
   const tokens = React.useMemo(() => listShieldTokens(), []);
@@ -366,9 +373,38 @@ export default function ShieldPage() {
           transition={{ duration: 0.32, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
           className="flex flex-col gap-3"
         >
-          <div className="flex items-center gap-2 px-1 text-[12px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-            <ShieldIcon size={12} />
-            Shielded balance
+          <div className="flex items-center justify-between gap-2 px-1">
+            <div className="flex items-center gap-2 text-[12px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <ShieldIcon size={12} />
+              Shielded balance
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                onChain.sync().catch(() => {});
+              }}
+              disabled={onChain.status === "scanning" || !wallet.publicKey}
+              title={
+                wallet.publicKey
+                  ? "Scan the chain for shields done on other devices"
+                  : "Connect your wallet to sync from chain"
+              }
+              className="h-7 gap-1.5 px-2 text-[11px]"
+            >
+              <HugeiconsIcon
+                icon={
+                  onChain.status === "scanning" ? Loading03Icon : Refresh01Icon
+                }
+                size={12}
+                strokeWidth={1.8}
+                className={cn(
+                  onChain.status === "scanning" && "animate-spin",
+                )}
+              />
+              {onChain.status === "scanning" ? "Syncing" : "Sync from chain"}
+            </Button>
           </div>
           <div className="flex flex-col gap-2.5">
             {tokens.map((t) => {
@@ -377,23 +413,40 @@ export default function ShieldPage() {
               const noteCount = balance.unspent.filter(
                 (u) => u.mint === t.mint.toBase58(),
               ).length;
+              const onChainAmt = bigOrZero(
+                onChain.balanceByMint[t.mint.toBase58()],
+              );
+              const elsewhere = onChainAmt > amt ? onChainAmt - amt : 0n;
               return (
                 <div
                   key={t.id}
-                  className="flex items-center justify-between rounded-2xl border border-border bg-card/60 p-4"
+                  className="flex flex-col gap-2 rounded-2xl border border-border bg-card/60 p-4"
                 >
-                  <div className="flex items-center gap-3">
-                    <Logo className="size-7" />
-                    <div className="flex flex-col">
-                      <span className="text-[13px] font-medium">{t.id}</span>
-                      <span className="text-[11px] text-muted-foreground">
-                        {noteCount} {noteCount === 1 ? "note" : "notes"}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Logo className="size-7" />
+                      <div className="flex flex-col">
+                        <span className="text-[13px] font-medium">{t.id}</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {noteCount} {noteCount === 1 ? "note" : "notes"} on
+                          this device
+                        </span>
+                      </div>
+                    </div>
+                    <span className="font-mono text-[15px] tabular-nums">
+                      {formatBaseUnits(amt, t.decimals)}
+                    </span>
+                  </div>
+                  {elsewhere > 0n && (
+                    <div className="flex items-center justify-between border-t border-border/60 pt-2 text-[11.5px]">
+                      <span className="text-muted-foreground">
+                        Shielded from another device
+                      </span>
+                      <span className="font-mono tabular-nums text-amber-500">
+                        +{formatBaseUnits(elsewhere, t.decimals)}
                       </span>
                     </div>
-                  </div>
-                  <span className="font-mono text-[15px] tabular-nums">
-                    {formatBaseUnits(amt, t.decimals)}
-                  </span>
+                  )}
                 </div>
               );
             })}
@@ -403,11 +456,70 @@ export default function ShieldPage() {
               </p>
             )}
           </div>
-          <div className="mt-2 flex items-start gap-2 rounded-xl border border-border/60 bg-card/30 p-3 text-[12px] text-muted-foreground">
+          {onChain.error && (
+            <p className="rounded-xl border border-destructive/40 bg-destructive/5 px-3 py-2 text-[11.5px] text-destructive">
+              {onChain.error.message}
+            </p>
+          )}
+          {hasOffDeviceBalance(tokens, balance.balances, onChain.balanceByMint) && (
+            <div className="flex flex-col gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[12px] font-medium text-amber-600 dark:text-amber-300">
+                  Try cross-device recovery
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    recover.recover().catch(() => {});
+                  }}
+                  disabled={recover.status === "scanning" || !wallet.publicKey}
+                  className="h-7 gap-1.5 px-2 text-[11px]"
+                >
+                  <HugeiconsIcon
+                    icon={
+                      recover.status === "scanning"
+                        ? Loading03Icon
+                        : Refresh01Icon
+                    }
+                    size={12}
+                    strokeWidth={1.8}
+                    className={cn(
+                      recover.status === "scanning" && "animate-spin",
+                    )}
+                  />
+                  {recover.status === "scanning"
+                    ? "Recovering"
+                    : "Recover spendable"}
+                </Button>
+              </div>
+              <p className="text-[11.5px] text-muted-foreground">
+                Only shields done with recoverable mode enabled
+                (NEXT_PUBLIC_CLOAK_RECOVERABLE_SHIELDS) can be rebuilt
+                cross-device. Shields done before that flag was set need their
+                originating device.
+              </p>
+              {recover.lastResult && (
+                <p className="text-[11px] tabular-nums text-muted-foreground">
+                  Last run: {recover.lastResult.added.length} added,{" "}
+                  {recover.lastResult.skippedExisting} already known across{" "}
+                  {recover.lastResult.scannedTxs} txs.
+                </p>
+              )}
+              {recover.error && (
+                <p className="text-[11px] text-destructive">
+                  {recover.error.message}
+                </p>
+              )}
+            </div>
+          )}
+          <div className="mt-1 flex items-start gap-2 rounded-xl border border-border/60 bg-card/30 p-3 text-[12px] text-muted-foreground">
             <BalancesIcon size={20} className="mt-0.5 shrink-0 text-primary" />
             <span>
-              Balance is reconstructed from notes saved locally on this device.
-              Spending requires the wallet that deposited them.
+              {onChain.snapshot
+                ? "On-chain totals are computed from your viewing key. Balances marked “from another device” are shielded but cannot be spent here unless the originating device used recoverable mode."
+                : "Balance is reconstructed from notes saved locally on this device. Spending requires the wallet that deposited them. Hit Sync from chain to see your full on-chain shielded balance across devices."}
             </span>
           </div>
         </motion.aside>
@@ -625,4 +737,26 @@ function formatBaseUnits(amount: bigint, decimals: number): string {
   if (frac === 0n) return whole.toString();
   const fracStr = frac.toString().padStart(decimals, "0").replace(/0+$/, "");
   return `${whole.toString()}.${fracStr}`;
+}
+
+function bigOrZero(value: string | undefined): bigint {
+  if (!value) return 0n;
+  try {
+    return BigInt(value);
+  } catch {
+    return 0n;
+  }
+}
+
+function hasOffDeviceBalance(
+  tokens: ReturnType<typeof listShieldTokens>,
+  localBalances: Partial<Record<ShieldTokenId, bigint>>,
+  onChainBalanceByMint: Record<string, string>,
+): boolean {
+  for (const t of tokens) {
+    const local = localBalances[t.id] ?? 0n;
+    const onChain = bigOrZero(onChainBalanceByMint[t.mint.toBase58()]);
+    if (onChain > local) return true;
+  }
+  return false;
 }
