@@ -15,6 +15,7 @@ import { AnimatePresence, motion } from "motion/react";
 import * as React from "react";
 
 import { PageHeader } from "@/components/app-shell/page-header";
+import { ViewingKeyButton } from "@/components/cloak/viewing-key-button";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
@@ -172,6 +173,7 @@ export default function CompliancePage() {
         eyebrow="Selective disclosure"
         title="Compliance"
         description="Hand a viewing key to one auditor. They reconstruct your ledger off-chain. The chain still sees nothing."
+        actions={<ViewingKeyButton />}
       />
 
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 p-4 sm:p-5">
