@@ -1,6 +1,7 @@
 "use client";
 
 import "@/lib/buffer-polyfill";
+import "@/lib/cloak/init";
 
 import type { ReactNode } from "react";
 
