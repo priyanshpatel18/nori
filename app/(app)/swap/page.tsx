@@ -2,7 +2,7 @@
 
 import {
   Alert02Icon,
-  ArrowDataTransferVerticalIcon,
+  ArrowDown01Icon,
   ArrowRight01Icon,
   CheckmarkCircle01Icon,
 } from "@hugeicons/core-free-icons";
@@ -36,6 +36,8 @@ import {
   formatBaseUnits,
   useSwapQuote,
 } from "@/lib/cloak/use-swap-quote";
+import { useSwapRecovery } from "@/lib/cloak/use-swap-recovery";
+import type { PendingSwapRecord } from "@/lib/cloak/pending-swaps";
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanTxUrl } from "@/lib/solana/explorer";
 import { cn } from "@/lib/utils";
@@ -72,19 +74,26 @@ function amountErrorMessage(err: AmountError) {
 
 export default function SwapPage() {
   const tokens = React.useMemo(() => listShieldTokens(), []);
-  const defaultPair = React.useMemo<{ sell: ShieldTokenId; buy: ShieldTokenId }>(
-    () => pickDefaultPair(tokens.map((t) => t.id)),
+  // Cloak swaps go SOL → Jupiter-supported token only: the program pulls
+  // the SOL pool's next_index when generating the withdraw proof for the
+  // swap, so any non-SOL input mint trips "Leaf index N is beyond
+  // next_index M". Lock sell to SOL and pick a sensible default for buy.
+  const buyOptions = React.useMemo(
+    () => tokens.filter((t) => t.id !== "SOL"),
     [tokens],
   );
+  const defaultBuy: ShieldTokenId =
+    buyOptions[0]?.id ?? tokens[0]?.id ?? "USDC";
 
-  const [sell, setSell] = React.useState<ShieldTokenId>(defaultPair.sell);
-  const [buy, setBuy] = React.useState<ShieldTokenId>(defaultPair.buy);
+  const sell: ShieldTokenId = "SOL";
+  const [buy, setBuy] = React.useState<ShieldTokenId>(defaultBuy);
   const [amount, setAmount] = React.useState("");
   const [amountTouched, setAmountTouched] = React.useState(false);
   const [slippageBps, setSlippageBps] = React.useState(DEFAULT_SLIPPAGE_BPS);
 
   const wallet = useWallet();
   const swap = useSwap();
+  const recovery = useSwapRecovery();
   const [lastSwap, setLastSwap] = React.useState<{
     sellToken: ShieldTokenId;
     buyToken: ShieldTokenId;
@@ -110,24 +119,8 @@ export default function SwapPage() {
     amount: amountValid ? amount : "",
   });
 
-  function handleSwitchDirection() {
-    setSell(buy);
-    setBuy(sell);
-    setAmount("");
-    setAmountTouched(false);
-  }
-
-  function handleSelectSell(next: ShieldTokenId) {
-    if (next === buy) {
-      setBuy(sell);
-    }
-    setSell(next);
-  }
-
   function handleSelectBuy(next: ShieldTokenId) {
-    if (next === sell) {
-      setSell(buy);
-    }
+    if (next === sell) return; // sell is locked to SOL; ignore SOL→SOL.
     setBuy(next);
   }
 
@@ -159,9 +152,12 @@ export default function SwapPage() {
       (swap.depositTx.status !== "pending" ||
         swap.openSwapStateTx.status !== "pending"));
 
-  // Swap submission is paused while we resolve an SDK-side constraint
-  // around the swap pool tree (see swap-core comments). The UI stays
-  // interactive so users can browse quotes; the submit is hard-disabled.
+  // Swap submission is paused. Settlements have been timing out at the
+  // relay; the relay's own refund path runs but races nori's auto-refund,
+  // which then trips UtxoAlreadySpentError on the local fullWithdraw. Net
+  // outcome was confusing UX even when funds returned ok. Quotes still
+  // update so users can browse, and the recovery panel stays visible for
+  // anyone with a still-pending deposit.
   const SWAP_DISABLED = true;
   const canSubmit =
     !SWAP_DISABLED &&
@@ -182,7 +178,11 @@ export default function SwapPage() {
         description="Swap inside the Cloak shielded pool. The chain sees a generic pool tx, not your tokens or amounts."
       />
 
-      <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 py-10 sm:px-8 lg:grid-cols-[1.4fr_1fr]">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 sm:px-8">
+        {recovery.unresolved.length > 0 && (
+          <PendingSwapsPanel recovery={recovery} />
+        )}
+        <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         {swap.status === "success" && lastSwap ? (
           <SwapSuccessCard
             sellToken={lastSwap.sellToken}
@@ -267,13 +267,14 @@ export default function SwapPage() {
               <Label htmlFor="sell-amount" className="text-muted-foreground">
                 You sell
               </Label>
-              <TokenSelector
-                value={sell}
-                options={tokens}
-                disabledIds={[buy]}
-                onChange={handleSelectSell}
-                label="Sell token"
-              />
+              <div
+                className="inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-card/60 pl-2 pr-2.5 text-[13px] font-medium text-foreground"
+                aria-label="Sell token (locked to SOL)"
+                title="Cloak swaps are SOL-input only today."
+              >
+                <TokenLogo id="SOL" className="size-5" />
+                <span>SOL</span>
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <TokenLogo id={sell} className="size-7" />
@@ -314,22 +315,19 @@ export default function SwapPage() {
           </div>
 
           <div className="relative h-0">
-            <button
-              type="button"
-              onClick={handleSwitchDirection}
-              aria-label="Switch direction"
+            <div
+              aria-hidden="true"
               className={cn(
                 "absolute left-1/2 top-1/2 z-10 grid size-9 -translate-x-1/2 -translate-y-1/2 place-items-center",
-                "rounded-full border border-border bg-card text-foreground shadow-sm",
-                "transition-colors hover:bg-secondary",
+                "rounded-full border border-border bg-card text-muted-foreground shadow-sm",
               )}
             >
               <HugeiconsIcon
-                icon={ArrowDataTransferVerticalIcon}
+                icon={ArrowDown01Icon}
                 size={16}
                 strokeWidth={2}
               />
-            </button>
+            </div>
           </div>
 
           <div className="flex flex-col gap-2 rounded-2xl border border-border bg-background/40 p-4">
@@ -337,8 +335,7 @@ export default function SwapPage() {
               <Label className="text-muted-foreground">You receive</Label>
               <TokenSelector
                 value={buy}
-                options={tokens}
-                disabledIds={[sell]}
+                options={buyOptions}
                 onChange={handleSelectBuy}
                 label="Buy token"
               />
@@ -386,7 +383,7 @@ export default function SwapPage() {
               aria-disabled={SWAP_DISABLED || undefined}
               title={
                 SWAP_DISABLED
-                  ? "Swap is temporarily disabled while we resolve an SDK constraint."
+                  ? "Swap is paused while the relay settlement path is being stabilised."
                   : undefined
               }
             >
@@ -403,11 +400,11 @@ export default function SwapPage() {
                 strokeWidth={2.2}
               />
             </FancyButton>
-            {SWAP_DISABLED && (
-              <p className="text-[11.5px] text-muted-foreground">
-                Quotes still update live. Submission is paused while we resolve an SDK constraint.
-              </p>
-            )}
+            <p className="text-[11.5px] text-muted-foreground">
+              {SWAP_DISABLED
+                ? "Quotes still update live. Submission is paused — relay-side settlement is being stabilised. Existing pending swaps can still be re-polled or refunded above."
+                : "SOL → any Jupiter-supported token. Cloak deposits SOL into the shielded pool, runs the Jupiter swap inside the program, and sends the output directly to your wallet."}
+            </p>
           </div>
 
           <SwapProgress
@@ -505,19 +502,141 @@ export default function SwapPage() {
             ))}
           </ul>
         </motion.aside>
+        </div>
       </div>
     </>
   );
 }
 
-function pickDefaultPair(ids: ShieldTokenId[]): {
-  sell: ShieldTokenId;
-  buy: ShieldTokenId;
-} {
-  const fallback: ShieldTokenId = ids[0] ?? "SOL";
-  const sell = ids.includes("USDC") ? "USDC" : fallback;
-  const buy = ids.find((i) => i !== sell) ?? fallback;
-  return { sell, buy };
+function PendingSwapsPanel({
+  recovery,
+}: {
+  recovery: ReturnType<typeof useSwapRecovery>;
+}) {
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/5 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-[13px] font-semibold text-amber-600 dark:text-amber-300">
+            Unresolved swaps ({recovery.unresolved.length})
+          </h2>
+          <p className="text-[11.5px] text-muted-foreground">
+            These deposits landed in the shielded pool but the swap or refund
+            never finished. Re-poll the relay first; if it stayed failed, run
+            a manual refund to pull SOL back to your wallet.
+          </p>
+        </div>
+      </div>
+      <ul className="flex flex-col gap-2">
+        {recovery.unresolved.map((rec) => (
+          <PendingSwapRow key={rec.id} record={rec} recovery={recovery} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function PendingSwapRow({
+  record,
+  recovery,
+}: {
+  record: PendingSwapRecord;
+  recovery: ReturnType<typeof useSwapRecovery>;
+}) {
+  const isActiveAction = recovery.action.id === record.id;
+  const isPolling =
+    isActiveAction &&
+    recovery.action.kind === "poll" &&
+    recovery.action.status === "running";
+  const isRefunding =
+    isActiveAction &&
+    recovery.action.kind === "refund" &&
+    recovery.action.status === "running";
+  const actionError =
+    isActiveAction && recovery.action.status === "error"
+      ? recovery.action.error
+      : null;
+
+  return (
+    <li className="flex flex-col gap-2 rounded-xl border border-border bg-background/40 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-col">
+          <span className="text-[12.5px] font-medium text-foreground">
+            {record.sellAmountRaw} of {shortMint(record.sellMint)} → {shortMint(record.buyMint)}
+          </span>
+          <span className="text-[11px] text-muted-foreground">
+            Status: {record.status}
+            {record.error ? ` · ${record.error}` : ""}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => recovery.poll(record).catch(() => {})}
+            disabled={isPolling || !record.requestId}
+            className="rounded-md border border-border bg-card/60 px-2.5 py-1 text-[11px] font-medium hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isPolling ? "Polling…" : "Re-poll relay"}
+          </button>
+          <button
+            type="button"
+            onClick={() => recovery.refund(record).catch(() => {})}
+            disabled={isRefunding}
+            className="rounded-md border border-amber-500/60 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-amber-300"
+          >
+            {isRefunding ? "Refunding…" : "Refund deposit"}
+          </button>
+          <button
+            type="button"
+            onClick={() => recovery.dismiss(record)}
+            className="text-[11px] text-muted-foreground hover:text-foreground"
+            title="Remove from this list"
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-3 text-[10.5px] text-muted-foreground">
+        <span>
+          Deposit:{" "}
+          <a
+            className="font-mono text-foreground/80 underline-offset-2 hover:underline"
+            href={solscanTxUrl(record.depositSignature)}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {shortSig(record.depositSignature)}
+          </a>
+        </span>
+        {record.swapSignature && (
+          <span>
+            Swap:{" "}
+            <a
+              className="font-mono text-foreground/80 underline-offset-2 hover:underline"
+              href={solscanTxUrl(record.swapSignature)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {shortSig(record.swapSignature)}
+            </a>
+          </span>
+        )}
+        {record.requestId && (
+          <span>
+            Request: <span className="font-mono">{record.requestId}</span>
+          </span>
+        )}
+      </div>
+      {actionError && (
+        <p className="text-[11px] text-destructive">{actionError.message}</p>
+      )}
+    </li>
+  );
+}
+
+function shortMint(mint: string): string {
+  if (mint.length <= 10) return mint;
+  return `${mint.slice(0, 4)}…${mint.slice(-4)}`;
 }
 
 function formatNumber(n: number) {

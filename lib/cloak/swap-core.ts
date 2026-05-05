@@ -3,12 +3,13 @@
 import {
   createUtxo,
   createZeroUtxo,
+  deriveUtxoKeypairFromSpendKey,
   fullWithdraw,
-  generateUtxoKeypair,
   isRootNotFoundError,
   RelayService,
   swapWithChange,
   transact,
+  type SpendKey,
   type TransactResult,
   type TxStatus,
   type UtxoSwapResult,
@@ -22,6 +23,12 @@ import {
 } from "@solana/web3.js";
 
 import { applyBufferPolyfill } from "@/lib/buffer-polyfill";
+import {
+  appendPendingSwap,
+  serializeUtxo,
+  updatePendingSwap,
+} from "@/lib/cloak/pending-swaps";
+import type { SolanaCluster } from "@/lib/solana/config";
 import { isStaleNoteError, isSubmittingStatus } from "./fast-send-core";
 
 export type SwapPhase =
@@ -60,6 +67,14 @@ export type SwapOnceArgs = {
   /** Slippage-protected minimum output in base units of `buyMint`. */
   minOutputBaseUnits: bigint;
   sender: PublicKey;
+  /** Wallet-derived spend key. The deposit's UTXO keypair is derived from
+   *  this so a future device (or a fresh tab) can rebuild it and run a
+   *  manual refund if the relay never settles. Was previously generated
+   *  ephemerally, which left funds unrecoverable on settlement timeout. */
+  spendKey: SpendKey;
+  /** Cluster the wallet is on; used to scope the persisted pending-swap
+   *  record so mainnet/devnet entries don't collide. */
+  cluster: SolanaCluster;
   connection: Connection;
   programId: PublicKey;
   relayUrl: string;
@@ -118,6 +133,8 @@ export async function swapOnce(args: SwapOnceArgs): Promise<SwapOnceResult> {
     sellMint,
     buyMint,
     minOutputBaseUnits,
+    spendKey,
+    cluster,
     sender,
     connection,
     programId,
@@ -150,12 +167,18 @@ export async function swapOnce(args: SwapOnceArgs): Promise<SwapOnceResult> {
   onTxUpdate?.({ kind: "open-swap-state", signature: null, status: "pending" });
   onTxUpdate?.({ kind: "settlement", signature: null, status: "pending" });
 
-  log.step("generating ephemeral utxo keypair");
-  const ephemeralOwner = await generateUtxoKeypair();
+  // Deposit owner is derived from the wallet's spend key, NOT generated
+  // ephemerally. If the relay never settles and the auto-refund below also
+  // fails, this means the deposit's UTXO can be rebuilt from the wallet
+  // sig alone (any device, any future tab) and refunded manually via
+  // `useSwapRecovery`. The previous ephemeral keypair stranded SOL in the
+  // pool whenever this path failed.
+  log.step("deriving deposit utxo keypair from spend key");
+  const depositOwner = await deriveUtxoKeypairFromSpendKey(spendKey.sk_spend);
   log.step("creating output utxo");
   const depositOutput = await createUtxo(
     sellAmountBaseUnits,
-    ephemeralOwner,
+    depositOwner,
     sellMint,
   );
 
@@ -213,14 +236,37 @@ export async function swapOnce(args: SwapOnceArgs): Promise<SwapOnceResult> {
     status: "settled",
   });
 
+  // Persist pending swap state IMMEDIATELY after the deposit lands and
+  // BEFORE we expose the call to any further failure modes. The persisted
+  // record carries the deposit's output UTXOs (including blinding +
+  // deterministic keypair), so a later session can run the manual refund
+  // flow even if this tab crashes mid-swap.
+  const senderBase58 = sender.toBase58();
+  const recipientAta = await getAssociatedTokenAddress(buyMint, sender);
+  log.step(`recipient ATA: ${recipientAta.toBase58()}`);
+  appendPendingSwap(senderBase58, cluster, {
+    id: depositResult.signature,
+    cluster,
+    wallet: senderBase58,
+    depositSignature: depositResult.signature,
+    swapSignature: null,
+    requestId: null,
+    settlementSignature: null,
+    refundSignature: null,
+    recipientAta: recipientAta.toBase58(),
+    sellMint: sellMint.toBase58(),
+    buyMint: buyMint.toBase58(),
+    sellAmountRaw: sellAmountBaseUnits.toString(),
+    minOutRaw: minOutputBaseUnits.toString(),
+    outputUtxos: depositResult.outputUtxos.map(serializeUtxo),
+    status: "pending",
+  });
+
   // Anything after this point that throws strands the deposit on-chain. We
   // wrap so we can attempt an automatic refund (fullWithdraw) before the
   // error reaches the caller — the user only signed once, but their funds
   // are now in the pool, so we owe them at least a best-effort recovery.
   try {
-    log.step("deriving recipient ATA");
-    const recipientAta = await getAssociatedTokenAddress(buyMint, sender);
-    log.step(`recipient ATA: ${recipientAta.toBase58()}`);
 
     let swapResult: UtxoSwapResult | undefined;
     for (let attempt = 1; attempt <= SWAP_MAX_ATTEMPTS; attempt += 1) {
@@ -312,6 +358,10 @@ export async function swapOnce(args: SwapOnceArgs): Promise<SwapOnceResult> {
     });
 
     const requestId = swapResult.requestId ?? null;
+    updatePendingSwap(senderBase58, cluster, depositResult.signature, {
+      swapSignature: swapResult.signature,
+      requestId,
+    });
 
     let settlementSignature: string | null = null;
     if (requestId) {
@@ -340,6 +390,11 @@ export async function swapOnce(args: SwapOnceArgs): Promise<SwapOnceResult> {
     } else {
       log.step("no requestId returned — skipping settlement poll");
     }
+
+    updatePendingSwap(senderBase58, cluster, depositResult.signature, {
+      status: "settled",
+      settlementSignature,
+    });
 
     log.phase("success");
     log.success({
@@ -380,6 +435,26 @@ export async function swapOnce(args: SwapOnceArgs): Promise<SwapOnceResult> {
       onTxUpdate,
       log,
     });
+
+    // Reflect the recovery outcome in the persisted record so the UI's
+    // "Pending swaps" panel can show the right next action (or hide the
+    // entry entirely once refunded).
+    if (recovery.kind === "refunded") {
+      updatePendingSwap(senderBase58, cluster, depositResult.signature, {
+        status: "refunded",
+        refundSignature: recovery.signature,
+      });
+    } else if (recovery.kind === "refund-failed") {
+      updatePendingSwap(senderBase58, cluster, depositResult.signature, {
+        status: "needs-recovery",
+        error: recovery.error.message,
+      });
+    } else {
+      updatePendingSwap(senderBase58, cluster, depositResult.signature, {
+        status: "needs-recovery",
+        error: `recovery skipped: ${recovery.reason}`,
+      });
+    }
 
     throw new SwapFailedAfterDepositError(
       buildPostDepositMessage(err, recovery),

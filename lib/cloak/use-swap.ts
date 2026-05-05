@@ -4,9 +4,12 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import * as React from "react";
 
+import { solanaConfig } from "@/lib/solana/config";
+
 import { cloakConfig } from "./config";
 import { isSubmittingStatus } from "./fast-send-core";
 import { createMemoizedSignMessage } from "./sign-message-cache";
+import { deriveSpendKey } from "./spend-key";
 import {
   swapOnce,
   type SwapPhase,
@@ -132,12 +135,23 @@ export function useSwap() {
           uiPercent: PHASE_WINDOW["deposit-proof"].enter,
         });
 
+        // Derive once per swap so the deposit's UTXO keypair is
+        // deterministic. Avoids the "ephemeral keypair lost on tab close /
+        // settlement timeout" failure mode where stranded SOL was
+        // unrecoverable.
+        const { spendKey } = await deriveSpendKey(
+          senderBase58,
+          memoizedSignMessage,
+        );
+
         const result = await swapOnce({
           sellAmountBaseUnits,
           sellMint,
           buyMint,
           minOutputBaseUnits,
           sender,
+          spendKey,
+          cluster: solanaConfig.cluster,
           connection,
           programId: cloakConfig.programId,
           relayUrl: cloakConfig.relayUrl,

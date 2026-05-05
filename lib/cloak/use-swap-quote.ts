@@ -44,17 +44,23 @@ export type UseSwapQuoteResult = {
 
 const IDLE_STATE: QuoteState = { status: "idle", quote: null, error: null };
 
-// Indicative reference prices, expressed as USD per 1 token.
-// These drive the scaffold's quote math until a live router is wired in.
-const REFERENCE_USD: Record<ShieldTokenId, number> = {
-  SOL: 165,
-  USDC: 1,
-  USDT: 1,
-};
+// Jupiter Lite endpoint (free, no API key). Same route the relay uses for
+// settlement, so the on-screen quote and the real fill stay close.
+// Override via NEXT_PUBLIC_JUPITER_QUOTE_URL when running against a paid
+// or self-hosted Jupiter instance.
+const JUPITER_QUOTE_URL =
+  process.env.NEXT_PUBLIC_JUPITER_QUOTE_URL ??
+  "https://lite-api.jup.ag/swap/v1/quote";
 
-const DEFAULT_FEE_BPS = 30;
+// Slippage we ask Jupiter to plan for. The UI applies its own slippage on
+// top of this for the on-chain min-out, so this just nudges Jupiter to
+// pick routes that are robust to small price moves between quote and fill.
+const QUOTE_SLIPPAGE_BPS = 50;
 
-function parseAmountToBaseUnits(amount: string, decimals: number): bigint | null {
+function parseAmountToBaseUnits(
+  amount: string,
+  decimals: number,
+): bigint | null {
   const trimmed = amount.trim();
   if (!trimmed) return null;
   if (!/^\d*\.?\d*$/.test(trimmed) || trimmed === ".") return null;
@@ -66,53 +72,85 @@ function parseAmountToBaseUnits(amount: string, decimals: number): bigint | null
   return n;
 }
 
-function indicativeQuote(input: {
-  sell: ShieldTokenId;
-  buy: ShieldTokenId;
-  inBase: bigint;
-  inDecimals: number;
-  outDecimals: number;
-}): SwapQuote {
-  const { sell, buy, inBase, inDecimals, outDecimals } = input;
-  const sellUsd = REFERENCE_USD[sell];
-  const buyUsd = REFERENCE_USD[buy];
+type JupiterRouteStep = {
+  swapInfo?: { label?: string; ammKey?: string };
+};
 
-  const inHuman = Number(inBase) / 10 ** inDecimals;
-  const grossOutHuman = (inHuman * sellUsd) / buyUsd;
-  const feeFactor = 1 - DEFAULT_FEE_BPS / 10_000;
-  const netOutHuman = grossOutHuman * feeFactor;
+type JupiterQuoteResponse = {
+  inputMint?: string;
+  outputMint?: string;
+  inAmount?: string;
+  outAmount?: string;
+  priceImpactPct?: string | number;
+  routePlan?: JupiterRouteStep[];
+  slippageBps?: number;
+  contextSlot?: number;
+};
 
-  const outBase = BigInt(Math.max(0, Math.floor(netOutHuman * 10 ** outDecimals)));
+async function fetchJupiterQuote(args: {
+  inputMint: string;
+  outputMint: string;
+  amountBaseUnits: bigint;
+  signal: AbortSignal;
+}): Promise<{
+  outAmountBaseUnits: bigint;
+  priceImpactPct: number;
+  route: string;
+}> {
+  const url = new URL(JUPITER_QUOTE_URL);
+  url.searchParams.set("inputMint", args.inputMint);
+  url.searchParams.set("outputMint", args.outputMint);
+  url.searchParams.set("amount", args.amountBaseUnits.toString());
+  url.searchParams.set("slippageBps", String(QUOTE_SLIPPAGE_BPS));
 
-  const price = sell === buy ? 1 : sellUsd / buyUsd;
+  const res = await fetch(url.toString(), {
+    signal: args.signal,
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Jupiter quote failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const json = (await res.json()) as JupiterQuoteResponse;
+
+  if (!json.outAmount) {
+    throw new Error("Jupiter quote response missing outAmount");
+  }
+
+  let outAmountBaseUnits: bigint;
+  try {
+    outAmountBaseUnits = BigInt(json.outAmount);
+  } catch {
+    throw new Error(`Jupiter outAmount not parseable: ${json.outAmount}`);
+  }
+
+  const priceImpactPct = parseFloat(String(json.priceImpactPct ?? "0"));
+  const route = (json.routePlan ?? [])
+    .map((step) => step.swapInfo?.label)
+    .filter((label): label is string => typeof label === "string" && label !== "")
+    .join(" → ");
 
   return {
-    inAmountBaseUnits: inBase,
-    outAmountBaseUnits: outBase,
-    inDecimals,
-    outDecimals,
-    price,
-    priceImpactPct: 0,
-    feeBps: DEFAULT_FEE_BPS,
-    route: `${sell} → ${buy}`,
-    asOf: Date.now(),
+    outAmountBaseUnits,
+    priceImpactPct: Number.isFinite(priceImpactPct) ? priceImpactPct : 0,
+    route,
   };
 }
 
-/**
- * Indicative swap quote for the scaffold. Replace `indicativeQuote()` with a
- * real router call (Jupiter, SDK, etc.) once the swap path is wired.
- */
 type QuoteJob =
   | { kind: "idle" }
   | { kind: "error"; error: Error }
   | {
-      kind: "compute";
+      kind: "fetch";
       sell: ShieldTokenId;
       buy: ShieldTokenId;
       inBase: bigint;
       inDecimals: number;
       outDecimals: number;
+      inputMint: string;
+      outputMint: string;
     };
 
 function planQuoteJob(input: UseSwapQuoteInput): QuoteJob {
@@ -132,17 +170,19 @@ function planQuoteJob(input: UseSwapQuoteInput): QuoteJob {
   if (inBase === null) return { kind: "idle" };
 
   return {
-    kind: "compute",
+    kind: "fetch",
     sell,
     buy,
     inBase,
     inDecimals: sellToken.decimals,
     outDecimals: buyToken.decimals,
+    inputMint: sellToken.mint.toBase58(),
+    outputMint: buyToken.mint.toBase58(),
   };
 }
 
 export function useSwapQuote(input: UseSwapQuoteInput): UseSwapQuoteResult {
-  const { sell, buy, amount, debounceMs = 300 } = input;
+  const { sell, buy, amount, debounceMs = 350 } = input;
   const [state, setState] = React.useState<QuoteState>(IDLE_STATE);
   const [tick, setTick] = React.useState(0);
 
@@ -164,20 +204,40 @@ export function useSwapQuote(input: UseSwapQuoteInput): UseSwapQuoteResult {
       error: null,
     }));
 
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
       try {
-        if (cancelled) return;
-        const q = indicativeQuote({
-          sell: job.sell,
-          buy: job.buy,
-          inBase: job.inBase,
-          inDecimals: job.inDecimals,
-          outDecimals: job.outDecimals,
+        const fetched = await fetchJupiterQuote({
+          inputMint: job.inputMint,
+          outputMint: job.outputMint,
+          amountBaseUnits: job.inBase,
+          signal: controller.signal,
         });
-        setState({ status: "ready", quote: q, error: null });
+        if (controller.signal.aborted) return;
+
+        // Compute display price as sell-per-buy in human units.
+        const inHuman = Number(job.inBase) / 10 ** job.inDecimals;
+        const outHuman =
+          Number(fetched.outAmountBaseUnits) / 10 ** job.outDecimals;
+        const price = outHuman > 0 ? inHuman / outHuman : 0;
+
+        setState({
+          status: "ready",
+          quote: {
+            inAmountBaseUnits: job.inBase,
+            outAmountBaseUnits: fetched.outAmountBaseUnits,
+            inDecimals: job.inDecimals,
+            outDecimals: job.outDecimals,
+            price,
+            priceImpactPct: fetched.priceImpactPct,
+            feeBps: 0,
+            route: fetched.route || `${job.sell} → ${job.buy}`,
+            asOf: Date.now(),
+          },
+          error: null,
+        });
       } catch (e) {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         setState({
           status: "error",
           quote: null,
@@ -187,7 +247,7 @@ export function useSwapQuote(input: UseSwapQuoteInput): UseSwapQuoteResult {
     }, debounceMs);
 
     return () => {
-      cancelled = true;
+      controller.abort();
       window.clearTimeout(timer);
     };
   }, [sell, buy, amount, debounceMs, tick]);
