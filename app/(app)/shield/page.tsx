@@ -327,12 +327,41 @@ export default function ShieldPage() {
                   </div>
                 </div>
                 {token && action !== "deposit" && (
-                  <p className="text-[12px] text-muted-foreground">
-                    Available:{" "}
-                    <span className="font-mono text-foreground">
-                      {formatBaseUnits(tokenBalance, token.decimals)} {token.id}
+                  <div className="flex items-center justify-between gap-2 text-[12px] text-muted-foreground">
+                    <span>
+                      Available:{" "}
+                      <span className="font-mono text-foreground">
+                        {formatBaseUnits(tokenBalance, token.decimals)}{" "}
+                        {token.id}
+                      </span>
                     </span>
-                  </p>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAmount(
+                            formatBaseUnits(tokenBalance / 2n, token.decimals),
+                          )
+                        }
+                        disabled={tokenBalance <= 0n}
+                        className="rounded-md border border-border bg-background/60 px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Half
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAmount(
+                            formatBaseUnits(tokenBalance, token.decimals),
+                          )
+                        }
+                        disabled={tokenBalance <= 0n}
+                        className="rounded-md border border-border bg-background/60 px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Max
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -719,6 +748,8 @@ function phaseLabel(phase: NonNullable<ReturnType<typeof useShield>["state"]["ph
   switch (phase) {
     case "deriving-key":
       return "Deriving shield key";
+    case "consolidating":
+      return "Merging notes";
     case "building-proof":
       return "Generating ZK proof";
     case "submitting":

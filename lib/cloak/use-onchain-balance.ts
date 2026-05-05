@@ -1,7 +1,8 @@
 "use client";
 
 import { scanTransactions } from "@cloak.dev/sdk";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { Connection } from "@solana/web3.js";
 import * as React from "react";
 
 import { applyBufferPolyfill } from "@/lib/buffer-polyfill";
@@ -42,10 +43,17 @@ const SCAN_LIMIT = 200;
 const SCAN_BATCH_SIZE = 3;
 
 export function useOnChainBalance(): UseOnChainBalance {
-  const { connection } = useConnection();
   const wallet = useWallet();
   const walletKey = wallet.publicKey?.toBase58() ?? null;
   const cluster: SolanaCluster = solanaConfig.cluster;
+
+  // The app-wide ConnectionProvider is `processed`-commitment for snappy
+  // tx confirmations, but `getSignaturesForAddress` (called inside
+  // scanTransactions) requires at least `confirmed`. Mint our own.
+  const scanConnection = React.useMemo(
+    () => new Connection(solanaConfig.rpcUrl, "confirmed"),
+    [],
+  );
 
   const cacheRef = React.useRef<{
     walletKey: string | null;
@@ -151,7 +159,7 @@ export function useOnChainBalance(): UseOnChainBalance {
         // notes addressed to nk regardless of who signed the tx — this is
         // the only way to surface shields done from a different origin.
         const result = await scanTransactions({
-          connection,
+          connection: scanConnection,
           programId: cloakConfig.programId,
           viewingKeyNk: nk,
           limit: SCAN_LIMIT,
@@ -188,7 +196,7 @@ export function useOnChainBalance(): UseOnChainBalance {
 
     inflightRef.current = run;
     return run;
-  }, [wallet, connection, cluster]);
+  }, [wallet, scanConnection, cluster]);
 
   const reset = React.useCallback(async () => {
     if (!wallet.publicKey) return null;

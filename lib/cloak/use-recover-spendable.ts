@@ -6,8 +6,9 @@ import {
   fetchCommitments,
   type CommitmentEntry,
 } from "@cloak.dev/sdk";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import {
+  Connection,
   type ConfirmedSignatureInfo,
   type ParsedTransactionWithMeta,
   type PartiallyDecodedInstruction,
@@ -66,8 +67,15 @@ export type UseRecoverSpendable = {
 };
 
 export function useRecoverSpendable(): UseRecoverSpendable {
-  const { connection } = useConnection();
   const wallet = useWallet();
+
+  // App-wide Connection is `processed`-commitment for snappy confirmations,
+  // but getSignaturesForAddress / getParsedTransaction need at least
+  // `confirmed`. Use our own.
+  const scanConnection = React.useMemo(
+    () => new Connection(solanaConfig.rpcUrl, "confirmed"),
+    [],
+  );
 
   const [status, setStatus] = React.useState<RecoverStatus>("idle");
   const [progress, setProgress] = React.useState<string | null>(null);
@@ -128,7 +136,7 @@ export function useRecoverSpendable(): UseRecoverSpendable {
         // call again to walk older history.
         setProgress("Listing recent shielded transactions");
         const signatures: ConfirmedSignatureInfo[] =
-          await connection.getSignaturesForAddress(programId, {
+          await scanConnection.getSignaturesForAddress(programId, {
             limit: SIGNATURES_PAGE,
           });
 
@@ -150,7 +158,7 @@ export function useRecoverSpendable(): UseRecoverSpendable {
           );
           const txs = await Promise.all(
             window.map((sig) =>
-              connection
+              scanConnection
                 .getParsedTransaction(sig.signature, {
                   maxSupportedTransactionVersion: 0,
                   commitment: "confirmed",
@@ -340,7 +348,7 @@ export function useRecoverSpendable(): UseRecoverSpendable {
 
     inflightRef.current = run;
     return run;
-  }, [wallet, connection]);
+  }, [wallet, scanConnection]);
 
   return { status, progress, error, lastResult, recover };
 }

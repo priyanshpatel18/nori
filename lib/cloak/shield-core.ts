@@ -35,6 +35,7 @@ import type { SolanaCluster } from "@/lib/solana/config";
 
 export type ShieldPhase =
   | "deriving-key"
+  | "consolidating"
   | "building-proof"
   | "submitting"
   | "confirming"
@@ -206,14 +207,113 @@ export async function shieldWithdrawTo(
   } = args;
 
   const mintBase58 = mint.toBase58();
-  const candidates = available
+  // SDK is 2-in/2-out per tx, so a single withdraw can spend at most the
+  // top two notes by amount. If the user has more notes than that and the
+  // top two don't cover the requested amount, we have to merge notes
+  // (self-transfer 2 → 1) until the top two suffice. Each merge is its own
+  // wallet popup + ZK proof, so we surface a `consolidating` phase to the UI.
+  const walletKey = walletPublicKey.toBase58();
+  let pool = available
     .filter((u) => u.mint === mintBase58 && !u.isSpent)
     .map((u) => ({ stored: u, amount: BigInt(u.amount) }))
     .sort((a, b) => (b.amount > a.amount ? 1 : b.amount < a.amount ? -1 : 0));
 
-  const selected: typeof candidates = [];
+  const trueAvailable = pool.reduce((acc, c) => acc + c.amount, 0n);
+  if (trueAvailable < amountBaseUnits) {
+    throw new InsufficientShieldedBalanceError(amountBaseUnits, trueAvailable);
+  }
+
+  onPhase?.("deriving-key");
+  const ownerKeypair = await deriveUtxoKeypairFromSpendKey(spendKey.sk_spend);
+
+  // Consolidation loop. Each iteration merges the two smallest notes into
+  // one larger note, reducing the pool by 1. Bounded by the initial pool
+  // length so we can't infinite-loop on a programming bug.
+  const consolidationSigs: string[] = [];
+  for (let safety = pool.length; safety > 0; safety -= 1) {
+    const top2 = pool[0].amount + (pool[1]?.amount ?? 0n);
+    if (top2 >= amountBaseUnits || pool.length < 2) break;
+
+    onPhase?.("consolidating");
+    onProgress?.(
+      `Merging ${pool.length} notes (${consolidationSigs.length + 1})`,
+    );
+
+    // Merge the two smallest notes — leaves the largest in place so we
+    // converge fastest toward "top 2 covers".
+    const a = pool[pool.length - 1];
+    const b = pool[pool.length - 2];
+    const mergedAmount = a.amount + b.amount;
+    const inA = await hydrateUtxo(a.stored, spendKey);
+    const inB = await hydrateUtxo(b.stored, spendKey);
+    const mergedOutput = await createUtxo(mergedAmount, ownerKeypair, mint);
+    const zeroOutput = await createZeroUtxo(mint);
+
+    let mergeEncryptedNotes: string[] | undefined;
+    if (RECOVERABLE_SHIELDS_ENABLED) {
+      const ownerViewKey = deriveViewKey(spendKey.sk_spend);
+      const commitment = await computeUtxoCommitment(mergedOutput);
+      mergeEncryptedNotes = [
+        buildRecoverableNoteB64({
+          output: mergedOutput,
+          commitment,
+          ownerViewKey,
+        }),
+      ];
+    }
+
+    const mergeResult = await transact(
+      {
+        inputUtxos: [inA, inB],
+        outputUtxos: [mergedOutput, zeroOutput],
+        externalAmount: 0n,
+      },
+      {
+        connection,
+        programId,
+        relayUrl,
+        walletPublicKey,
+        signTransaction,
+        signMessage,
+        enforceViewingKeyRegistration: false,
+        ...(mergeEncryptedNotes ? { encryptedNotes: mergeEncryptedNotes } : {}),
+        onProgress: (status: string) => onProgress?.(status),
+        onProofProgress: (pct: number) => onProofProgress?.(pct),
+      } as Parameters<typeof transact>[1],
+    );
+    consolidationSigs.push(mergeResult.signature);
+
+    // Reflect the merge in local UTXO state so a mid-flow failure leaves
+    // the pool consistent with chain.
+    markSpent(
+      walletKey,
+      cluster,
+      [a.stored.commitment, b.stored.commitment],
+      mergeResult.signature,
+    );
+    const mergedStored = utxosToStored(
+      mergeResult.outputUtxos,
+      ownerKeypair.publicKey,
+      "change",
+      mergeResult.signature,
+    );
+    appendUtxos(walletKey, cluster, mergedStored);
+
+    // Rebuild the candidate pool from the merged outputs + remaining notes.
+    const remaining = pool.slice(0, pool.length - 2);
+    const mergedAsCandidates = mergedStored.map((u) => ({
+      stored: u,
+      amount: BigInt(u.amount),
+    }));
+    pool = [...remaining, ...mergedAsCandidates].sort((x, y) =>
+      y.amount > x.amount ? 1 : y.amount < x.amount ? -1 : 0,
+    );
+  }
+
+  // Now pick the top two for the actual withdraw.
+  const selected: typeof pool = [];
   let total = 0n;
-  for (const c of candidates) {
+  for (const c of pool) {
     if (selected.length >= 2) break;
     selected.push(c);
     total += c.amount;
@@ -221,10 +321,10 @@ export async function shieldWithdrawTo(
   }
 
   if (total < amountBaseUnits) {
+    // Should be unreachable given the consolidation loop; defensive guard.
     throw new InsufficientShieldedBalanceError(amountBaseUnits, total);
   }
 
-  onPhase?.("deriving-key");
   const inputs: Utxo[] = await Promise.all(
     selected.map((s) => hydrateUtxo(s.stored, spendKey)),
   );
@@ -259,7 +359,6 @@ export async function shieldWithdrawTo(
       ? await fullWithdraw(inputs, recipient, sdkOptions)
       : await partialWithdraw(inputs, recipient, amountBaseUnits, sdkOptions);
 
-  const walletKey = walletPublicKey.toBase58();
   const spent = markSpent(
     walletKey,
     cluster,
@@ -284,7 +383,7 @@ export class InsufficientShieldedBalanceError extends Error {
   readonly available: bigint;
   constructor(requested: bigint, available: bigint) {
     super(
-      `Insufficient shielded balance: needed ${requested}, top 2 UTXOs cover ${available}. Consolidate UTXOs first.`,
+      `Insufficient shielded balance: needed ${requested}, total spendable on this device is ${available}.`,
     );
     this.name = "InsufficientShieldedBalanceError";
     this.requested = requested;
