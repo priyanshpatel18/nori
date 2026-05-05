@@ -23,7 +23,7 @@ const SHIELD_KEY_VERSION = "v1";
 export type SignMessage = (message: Uint8Array) => Promise<Uint8Array>;
 
 export type ShieldSpendKeys = {
-  /** SHA-256(signature) — 32-byte deterministic seed. */
+  /** SHA-256(signature): 32-byte deterministic seed. */
   masterSeed: Uint8Array;
   /** Spend authority for owned UTXOs. Treat as secret. Never persist or log. */
   spendKey: SpendKey;
@@ -49,7 +49,7 @@ function cacheKey(walletPubkey: string): string {
  * re-prompt the wallet. The cache holds the in-flight promise too, so two
  * concurrent callers share a single popup.
  *
- * Pass the wallet's raw `signMessage` — this module does its own caching
+ * Pass the wallet's raw `signMessage`: this module does its own caching
  * keyed on wallet pubkey + message version, so layering with
  * `createMemoizedSignMessage` is unnecessary (and would double-cache the
  * same bytes).

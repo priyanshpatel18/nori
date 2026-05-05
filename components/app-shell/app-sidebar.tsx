@@ -5,6 +5,7 @@ import {
   DollarSendIcon,
   Exchange01Icon,
   FileSecurityIcon,
+  LockIcon,
   UserGroupIcon,
   UserMultipleIcon,
 } from "@hugeicons/core-free-icons";
@@ -48,6 +49,12 @@ type NavItem = {
 };
 
 const NAV: NavItem[] = [
+  {
+    href: "/shield",
+    label: "Shield",
+    description: "Your shielded balance: deposit, send, withdraw.",
+    icon: LockIcon,
+  },
   {
     href: "/pay",
     label: "Pay",
