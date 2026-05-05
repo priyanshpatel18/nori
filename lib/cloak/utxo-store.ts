@@ -15,22 +15,15 @@ const MAX_UTXOS = 500;
 export type UtxoSource = "deposit" | "transfer" | "change";
 
 export type StoredUtxo = {
-  /** bigint serialized as decimal string */
+  // bigints stored as decimal strings since localStorage is JSON
   amount: string;
-  /** bigint serialized as decimal string */
   blinding: string;
-  /** bigint serialized as decimal string */
   commitment: string;
-  /** Merkle leaf index */
   index: number;
-  /** bigint serialized as decimal string; required for proofs */
   siblingCommitment?: string;
-  /** SPL mint, base58 */
   mint: string;
   source: UtxoSource;
-  /** Wall-clock when this UTXO landed in the store */
   addedAt: number;
-  /** Solana tx signature that produced this UTXO */
   addSig: string;
   isSpent?: boolean;
   spentAt?: number;
@@ -144,11 +137,8 @@ export function clearUtxos(wallet: string, cluster: SolanaCluster): void {
   }
 }
 
-/**
- * Lift the SDK's `outputUtxos` from a TransactResult into storable records.
- * Filters to `amount > 0` (the SDK pads to 2 outputs; the synthetic zero
- * note is spendable but not balance-relevant).
- */
+// SDK pads outputs to 2; the synthetic zero note is spendable but not
+// balance-relevant, so we drop it here.
 export function utxosToStored(
   utxos: Utxo[],
   ownerPubkey: bigint,
@@ -177,12 +167,8 @@ export function utxosToStored(
     }));
 }
 
-/**
- * Hydrate a stored UTXO back into an SDK-spendable `Utxo`. Requires the
- * spend key in memory: we re-derive the same UTXO keypair we deposited
- * with, so the SDK accepts it as input. Spend key bytes never touch
- * storage, only the UTXO metadata does.
- */
+// Re-derives the UTXO keypair from the spend key. Spend key bytes never
+// touch storage; this is the only legitimate way to revive a stored note.
 export async function hydrateUtxo(
   stored: StoredUtxo,
   spendKey: SpendKey,

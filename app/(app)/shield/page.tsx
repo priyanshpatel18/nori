@@ -1,12 +1,8 @@
 "use client";
 
 import {
-  ArrowDown01Icon,
   ArrowRight01Icon,
-  ArrowUp01Icon,
   CheckmarkCircle01Icon,
-  Coins01Icon,
-  LockIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -14,6 +10,14 @@ import { PublicKey } from "@solana/web3.js";
 import { motion } from "motion/react";
 import * as React from "react";
 
+import {
+  BalancesIcon,
+  DownArrowIcon,
+  SendIcon,
+  ShieldIcon,
+  UpArrowIcon,
+  type IconProps,
+} from "@/components/Icons";
 import { PageHeader } from "@/components/app-shell/page-header";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
 import { FancyButton } from "@/components/ui/fancy-button";
@@ -36,25 +40,25 @@ type Action = "deposit" | "send" | "withdraw";
 const ACTIONS: Array<{
   id: Action;
   label: string;
-  icon: typeof ArrowDown01Icon;
+  icon: React.ComponentType<IconProps>;
   description: string;
 }> = [
   {
     id: "deposit",
     label: "Deposit",
-    icon: ArrowDown01Icon,
+    icon: DownArrowIcon,
     description: "Move funds from your wallet into the shielded pool.",
   },
   {
     id: "send",
     label: "Send",
-    icon: ArrowRight01Icon,
+    icon: SendIcon,
     description: "Send shielded balance to any Solana address.",
   },
   {
     id: "withdraw",
     label: "Withdraw",
-    icon: ArrowUp01Icon,
+    icon: UpArrowIcon,
     description: "Withdraw shielded balance back to your wallet.",
   },
 ];
@@ -189,7 +193,7 @@ export default function ShieldPage() {
                     />
                   )}
                   <span className="relative z-10 flex items-center gap-1.5">
-                    <HugeiconsIcon icon={a.icon} size={14} strokeWidth={2} />
+                    <a.icon size={14} />
                     {a.label}
                   </span>
                 </button>
@@ -340,7 +344,7 @@ export default function ShieldPage() {
           className="flex flex-col gap-3"
         >
           <div className="flex items-center gap-2 px-1 text-[12px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-            <HugeiconsIcon icon={LockIcon} size={12} strokeWidth={2} />
+            <ShieldIcon size={12} />
             Shielded balance
           </div>
           <div className="flex flex-col gap-2.5">
@@ -377,7 +381,7 @@ export default function ShieldPage() {
             )}
           </div>
           <div className="mt-2 flex items-start gap-2 rounded-xl border border-border/60 bg-card/30 p-3 text-[12px] text-muted-foreground">
-            <HugeiconsIcon icon={Coins01Icon} size={14} strokeWidth={2} className="mt-px" />
+            <BalancesIcon size={14} className="mt-px" />
             <span>
               Balance is reconstructed from notes saved locally on this device.
               Spending requires the wallet that deposited them.

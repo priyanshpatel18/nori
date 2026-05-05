@@ -1,20 +1,20 @@
 "use client";
 
-import {
-  ClockIcon,
-  DollarSendIcon,
-  Exchange01Icon,
-  FileSecurityIcon,
-  LockIcon,
-  UserGroupIcon,
-  UserMultipleIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 
+import {
+  ClockIcon,
+  ComplianceIcon,
+  PayrollIcon,
+  SendIcon,
+  ShieldIcon,
+  SwapTokensIcon,
+  TeamIcon,
+  type IconProps,
+} from "@/components/Icons";
 import { NoriWordmark } from "@/components/logos";
 import {
   Sidebar,
@@ -45,7 +45,7 @@ type NavItem = {
   href: string;
   label: string;
   description: string;
-  icon: typeof DollarSendIcon;
+  icon: React.ComponentType<IconProps>;
 };
 
 const NAV: NavItem[] = [
@@ -53,31 +53,31 @@ const NAV: NavItem[] = [
     href: "/shield",
     label: "Shield",
     description: "Your shielded balance: deposit, send, withdraw.",
-    icon: LockIcon,
+    icon: ShieldIcon,
   },
   {
     href: "/pay",
     label: "Pay",
     description: "Send a single private payment.",
-    icon: DollarSendIcon,
+    icon: SendIcon,
   },
   {
     href: "/swap",
     label: "Swap",
     description: "Trade tokens privately inside the pool.",
-    icon: Exchange01Icon,
+    icon: SwapTokensIcon,
   },
   {
     href: "/payroll",
     label: "Payroll",
     description: "Run a roster in one click.",
-    icon: UserMultipleIcon,
+    icon: PayrollIcon,
   },
   {
     href: "/team",
     label: "Team",
     description: "Save recipients and recurring schedules.",
-    icon: UserGroupIcon,
+    icon: TeamIcon,
   },
   {
     href: "/history",
@@ -89,7 +89,7 @@ const NAV: NavItem[] = [
     href: "/compliance",
     label: "Compliance",
     description: "Viewing keys and signed reports.",
-    icon: FileSecurityIcon,
+    icon: ComplianceIcon,
   },
 ];
 
@@ -157,14 +157,13 @@ export function AppSidebar() {
                         tooltip={item.label}
                         className={cn(
                           "relative z-10 h-11 gap-3 bg-transparent! data-active:bg-transparent!",
+                          "group-data-[collapsible=icon]:h-11! group-data-[collapsible=icon]:w-full! group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:[&>span]:hidden",
                           isActive && "text-sidebar-accent-foreground",
                         )}
                         render={<Link href={item.href} />}
                       >
-                        <HugeiconsIcon
-                          icon={item.icon}
+                        <item.icon
                           size={20}
-                          strokeWidth={1.8}
                           className={cn(
                             "size-5! transition-colors",
                             isActive ? "text-primary" : "text-sidebar-foreground/70",

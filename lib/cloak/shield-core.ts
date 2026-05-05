@@ -64,11 +64,6 @@ export type ShieldDepositResult = {
   added: StoredUtxo[];
 };
 
-/**
- * Deposit `amountBaseUnits` from the connected wallet into a UTXO owned by
- * the user's stable spend key. The resulting UTXO is appended to the local
- * store and shows up in `useShieldedBalance` for subsequent send/withdraw.
- */
 export async function shieldDeposit(
   args: ShieldDepositArgs,
 ): Promise<ShieldDepositResult> {
@@ -145,12 +140,9 @@ export type ShieldWithdrawArgs = SharedSdkOptions &
   ShieldCallbacks & {
     cluster: SolanaCluster;
     spendKey: SpendKey;
-    /** Amount to send out of the pool to `recipient`. */
     amountBaseUnits: bigint;
     mint: PublicKey;
-    /** External Solana wallet receiving the funds (own wallet for withdraw). */
     recipient: PublicKey;
-    /** Pre-loaded unspent UTXOs of the same mint, sorted any order. */
     available: StoredUtxo[];
   };
 
@@ -160,15 +152,8 @@ export type ShieldWithdrawResult = {
   added: StoredUtxo[];
 };
 
-/**
- * Spend up to two of the user's owned UTXOs to send `amountBaseUnits` to
- * an external Solana address. Used for both "send to address from balance"
- * and "withdraw to my wallet"; the only difference is `recipient`.
- *
- * SDK input limit is 2. If the two largest matching-mint UTXOs don't cover
- * the amount, throws InsufficientShieldedBalanceError so the UI can prompt
- * for a smaller amount or a future consolidation flow.
- */
+// Same SDK call powers both "send to address" and "withdraw to my wallet";
+// the recipient is the only difference.
 export async function shieldWithdrawTo(
   args: ShieldWithdrawArgs,
 ): Promise<ShieldWithdrawResult> {

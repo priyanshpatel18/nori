@@ -51,8 +51,7 @@ export function ViewingKeyButton() {
       if (copyTimer.current) clearTimeout(copyTimer.current);
       copyTimer.current = setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS);
     } catch {
-      // clipboard may be unavailable on insecure contexts; surface nothing
-      // and let the user retry, the masked value is still on screen
+      // clipboard may be blocked (insecure context); masked value stays on screen
     }
   }, []);
 

@@ -206,13 +206,8 @@ export function useShield() {
     [prepare, beginProcessing, callbacks, connection, handleError],
   );
 
-  /**
-   * Trigger spend-key derivation in the background if not already cached.
-   * Cuts the visible "two wallet popups" experience on first deposit down
-   * to one: the signMessage popup happens while the user is filling the
-   * form, leaving only the signTransaction popup at submit time. Safe to
-   * call repeatedly; cached calls are no-ops with no popup.
-   */
+  // Pulls the signMessage popup forward (e.g. on tab click or input focus)
+  // so submit only needs the signTransaction popup. No-op once cached.
   const prewarm = React.useCallback(() => {
     if (!wallet.publicKey || !wallet.signMessage) return;
     const pk = wallet.publicKey.toBase58();
@@ -222,10 +217,7 @@ export function useShield() {
       memoized = createMemoizedSignMessage(wallet.signMessage);
       signMessageCacheRef.current = { publicKey: pk, fn: memoized };
     }
-    void deriveSpendKey(pk, memoized).catch(() => {
-      // Surfaced via state on the next user-initiated action; ignore here
-      // so a missed prewarm doesn't spam errors before the user clicks anything.
-    });
+    void deriveSpendKey(pk, memoized).catch(() => {});
   }, [wallet]);
 
   return { state, deposit, withdraw, reset, prewarm };

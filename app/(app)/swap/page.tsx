@@ -5,7 +5,6 @@ import {
   ArrowDataTransferVerticalIcon,
   ArrowRight01Icon,
   CheckmarkCircle01Icon,
-  LockIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -13,6 +12,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Progress as ProgressPrimitive } from "@base-ui/react/progress";
 import * as React from "react";
 
+import { ShieldIcon, VerifiedTickIcon } from "@/components/Icons";
 import { PageHeader } from "@/components/app-shell/page-header";
 import { SlippageInput } from "@/components/cloak/slippage-input";
 import { TokenLogo, TokenSelector } from "@/components/cloak/token-selector";
@@ -483,9 +483,9 @@ export default function SwapPage() {
 
           <ul className="flex flex-col gap-2 rounded-2xl border border-border bg-card/40 p-5">
             {[
-              { icon: LockIcon, text: "Quote and proof generated locally." },
+              { Icon: ShieldIcon, text: "Quote and proof generated locally." },
               {
-                icon: CheckmarkCircle01Icon,
+                Icon: VerifiedTickIcon,
                 text: "Settles atomically in the shield-pool program.",
               },
             ].map((it, i) => (
@@ -496,10 +496,8 @@ export default function SwapPage() {
                 transition={{ delay: 0.16 + i * 0.05, duration: 0.25 }}
                 className="flex items-start gap-2.5 text-[12.5px] leading-5 text-muted-foreground"
               >
-                <HugeiconsIcon
-                  icon={it.icon}
+                <it.Icon
                   size={14}
-                  strokeWidth={1.8}
                   className="mt-0.5 text-primary"
                 />
                 <span>{it.text}</span>

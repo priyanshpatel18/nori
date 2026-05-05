@@ -27,10 +27,8 @@ export function useViewingKey() {
     fn: SignMessage | null;
   }>({ publicKey: null, fn: null });
 
-  // If the wallet disconnects or switches, drop any revealed key from local
-  // state so it's never displayed against the wrong account. React's
-  // documented "adjust state during render" pattern: cheaper than an effect
-  // and avoids the lint rule against synchronous setState in effects.
+  // Drop any revealed key when the wallet changes so it never leaks
+  // against the wrong account.
   const [stateWalletKey, setStateWalletKey] = React.useState<string | null>(
     walletKey,
   );

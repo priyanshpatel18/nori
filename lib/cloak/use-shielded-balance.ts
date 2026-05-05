@@ -26,9 +26,8 @@ const empty: ShieldedBalanceState = {
   balances: {},
 };
 
-// useSyncExternalStore requires referentially stable snapshots between
-// renders when nothing has changed. localStorage reads + JSON.parse give
-// fresh references each call, so cache and invalidate on subscribe events.
+// useSyncExternalStore needs the same array reference until something
+// actually changes; loadUtxos returns fresh JSON.parse output each call.
 const snapshotCache = new Map<string, StoredUtxo[]>();
 
 function snapshotKey(walletKey: string, cluster: SolanaCluster): string {
@@ -68,12 +67,6 @@ function compute(utxos: StoredUtxo[]): ShieldedBalanceState {
   return { utxos, unspent, balances };
 }
 
-/**
- * Owned shielded UTXOs + per-token balances for the connected wallet on the
- * active cluster. Subscribes to `cloak:utxos-updated` (same-tab writes) and
- * `storage` (cross-tab writes) via useSyncExternalStore so renders only
- * happen when the underlying notes change.
- */
 export function useShieldedBalance(): ShieldedBalanceState {
   const wallet = useWallet();
   const walletKey = wallet.publicKey?.toBase58() ?? null;

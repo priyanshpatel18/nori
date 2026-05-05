@@ -4,8 +4,6 @@ import {
   Alert02Icon,
   ArrowRight01Icon,
   CheckmarkCircle01Icon,
-  Coins01Icon,
-  LockIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { isAddress } from "@solana/kit";
@@ -14,6 +12,11 @@ import { PublicKey } from "@solana/web3.js";
 import { AnimatePresence, motion } from "motion/react";
 import * as React from "react";
 
+import {
+  RightArrowIcon,
+  ShieldIcon,
+  VerifiedTickIcon,
+} from "@/components/Icons";
 import { PageHeader } from "@/components/app-shell/page-header";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
 import { FancyButton } from "@/components/ui/fancy-button";
@@ -451,13 +454,13 @@ export default function PayPage() {
 
           <ul className="flex flex-col gap-2 rounded-2xl border border-border bg-card/40 p-5">
             {[
-              { icon: LockIcon, text: "Proof generated locally in your browser." },
+              { Icon: ShieldIcon, text: "Proof generated locally in your browser." },
               {
-                icon: CheckmarkCircle01Icon,
+                Icon: VerifiedTickIcon,
                 text: "Verified on-chain by the Cloak shield-pool program.",
               },
               {
-                icon: Coins01Icon,
+                Icon: RightArrowIcon,
                 text: "Settles in a single Solana transaction.",
               },
             ].map((it, i) => (
@@ -468,12 +471,7 @@ export default function PayPage() {
                 transition={{ delay: 0.16 + i * 0.05, duration: 0.25 }}
                 className="flex items-start gap-2.5 text-[12.5px] leading-5 text-muted-foreground"
               >
-                <HugeiconsIcon
-                  icon={it.icon}
-                  size={14}
-                  strokeWidth={1.8}
-                  className="mt-0.5 text-primary"
-                />
+                <it.Icon size={14} className="mt-0.5 text-primary" />
                 <span>{it.text}</span>
               </motion.li>
             ))}

@@ -181,9 +181,8 @@ function Content() {
     }
   }, [canScan, validatedNk, validatedWallet, dates, connection]);
 
-  // Auto-run scan when arriving via a fully-formed share URL. Defer the
-  // setState chain via queueMicrotask so it doesn't fire synchronously
-  // inside the effect body (avoids the cascading-render lint).
+  // Auto-run when arriving via a share URL. queueMicrotask defers the
+  // setState chain out of the effect body.
   const autoRanRef = React.useRef(false);
   React.useEffect(() => {
     if (autoRanRef.current) return;
