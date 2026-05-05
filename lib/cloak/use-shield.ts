@@ -12,7 +12,7 @@ import {
   type ShieldPhase,
 } from "@/lib/cloak/shield-core";
 import { createMemoizedSignMessage } from "@/lib/cloak/sign-message-cache";
-import { deriveSpendKey } from "@/lib/cloak/spend-key";
+import { deriveSpendKey, hasCachedSpendKey } from "@/lib/cloak/spend-key";
 import type { StoredUtxo } from "@/lib/cloak/utxo-store";
 import { solanaConfig } from "@/lib/solana/config";
 
@@ -206,5 +206,27 @@ export function useShield() {
     [prepare, beginProcessing, callbacks, connection, handleError],
   );
 
-  return { state, deposit, withdraw, reset };
+  /**
+   * Trigger spend-key derivation in the background if not already cached.
+   * Cuts the visible "two wallet popups" experience on first deposit down
+   * to one: the signMessage popup happens while the user is filling the
+   * form, leaving only the signTransaction popup at submit time. Safe to
+   * call repeatedly; cached calls are no-ops with no popup.
+   */
+  const prewarm = React.useCallback(() => {
+    if (!wallet.publicKey || !wallet.signMessage) return;
+    const pk = wallet.publicKey.toBase58();
+    if (hasCachedSpendKey(pk)) return;
+    let memoized = signMessageCacheRef.current.fn;
+    if (signMessageCacheRef.current.publicKey !== pk || !memoized) {
+      memoized = createMemoizedSignMessage(wallet.signMessage);
+      signMessageCacheRef.current = { publicKey: pk, fn: memoized };
+    }
+    void deriveSpendKey(pk, memoized).catch(() => {
+      // Surfaced via state on the next user-initiated action; ignore here
+      // so a missed prewarm doesn't spam errors before the user clicks anything.
+    });
+  }, [wallet]);
+
+  return { state, deposit, withdraw, reset, prewarm };
 }

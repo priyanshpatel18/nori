@@ -107,3 +107,12 @@ export function clearSpendKeyCache(walletPubkey?: string): void {
   }
   cache.delete(cacheKey(walletPubkey));
 }
+
+/**
+ * Synchronous check for "is the spend key already derived for this wallet
+ * in this session?" Used by callers that want to pre-warm the key only
+ * when needed, without triggering a wallet popup if it's already cached.
+ */
+export function hasCachedSpendKey(walletPubkey: string): boolean {
+  return cache.has(cacheKey(walletPubkey));
+}

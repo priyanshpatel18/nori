@@ -170,6 +170,7 @@ export default function ShieldPage() {
                   onClick={() => {
                     setAction(a.id);
                     if (shield.state.status !== "idle") shield.reset();
+                    shield.prewarm();
                   }}
                   className={cn(
                     "relative flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
@@ -255,6 +256,7 @@ export default function ShieldPage() {
                     placeholder="0.00"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
+                    onFocus={() => shield.prewarm()}
                     className="font-mono sm:flex-1"
                   />
                   <div className="flex items-center gap-1.5 rounded-xl border border-border bg-background/50 p-1">
