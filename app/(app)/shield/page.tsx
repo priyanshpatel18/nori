@@ -40,6 +40,7 @@ import { useShield } from "@/lib/cloak/use-shield";
 import { useShieldedBalance } from "@/lib/cloak/use-shielded-balance";
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanTxUrl } from "@/lib/solana/explorer";
+import { formatError, toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 type Action = "deposit" | "send" | "withdraw";
@@ -155,19 +156,60 @@ export default function ShieldPage() {
       recipient: recipientPk.toBase58(),
     });
 
+    const loadingLabel =
+      action === "deposit"
+        ? "Shielding deposit"
+        : action === "send"
+          ? "Sending shielded"
+          : "Withdrawing";
+    const successLabel =
+      action === "deposit"
+        ? "Deposit shielded"
+        : action === "send"
+          ? "Shielded transfer sent"
+          : "Withdraw complete";
+    const failureLabel =
+      action === "deposit"
+        ? "Deposit failed"
+        : action === "send"
+          ? "Send failed"
+          : "Withdraw failed";
+
+    const toastId = toast.loading(loadingLabel, {
+      description: `${amount} ${token.id}`,
+    });
+
     try {
-      if (action === "deposit") {
-        await shield.deposit({ amountBaseUnits, mint: token.mint });
-      } else {
-        await shield.withdraw({
-          amountBaseUnits,
-          mint: token.mint,
-          recipient: recipientPk,
-          available: tokenUnspent,
-        });
-      }
-    } catch {
-      // surfaced via shield.state.error
+      const result =
+        action === "deposit"
+          ? await shield.deposit({ amountBaseUnits, mint: token.mint })
+          : await shield.withdraw({
+              amountBaseUnits,
+              mint: token.mint,
+              recipient: recipientPk,
+              available: tokenUnspent,
+            });
+
+      toast.success(successLabel, {
+        id: toastId,
+        description: `${amount} ${token.id}`,
+        action: result.signature
+          ? {
+              label: "View",
+              onClick: () =>
+                window.open(
+                  solscanTxUrl(result.signature),
+                  "_blank",
+                  "noopener,noreferrer",
+                ),
+            }
+          : undefined,
+      });
+    } catch (err) {
+      toast.error(failureLabel, {
+        id: toastId,
+        description: formatError(err),
+      });
     }
   };
 

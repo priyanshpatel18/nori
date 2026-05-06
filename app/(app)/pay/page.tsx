@@ -37,6 +37,7 @@ import { appendPayment } from "@/lib/cloak/payment-history";
 import { useFastSend } from "@/lib/cloak/use-fast-send";
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanTxUrl } from "@/lib/solana/explorer";
+import { formatError, toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 const TOKENS = [
@@ -222,6 +223,9 @@ export default function PayPage() {
               token,
               recipient: recipient.trim(),
             });
+            const toastId = toast.loading("Sending privately", {
+              description: `${numericAmount} ${token}`,
+            });
             try {
               const amountBaseUnits = toBaseUnits(
                 amount,
@@ -250,8 +254,24 @@ export default function PayPage() {
                   source: "pay",
                 });
               }
-            } catch {
-              // surfaced via fastSend.error
+              toast.success("Payment sent privately", {
+                id: toastId,
+                description: `${recipientReceives} ${token} delivered`,
+                action: {
+                  label: "View",
+                  onClick: () =>
+                    window.open(
+                      solscanTxUrl(result.withdrawSignature),
+                      "_blank",
+                      "noopener,noreferrer",
+                    ),
+                },
+              });
+            } catch (err) {
+              toast.error("Send failed", {
+                id: toastId,
+                description: formatError(err),
+              });
             }
           }}
           noValidate
