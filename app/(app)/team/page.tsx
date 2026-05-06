@@ -728,6 +728,7 @@ function AmountWithToken({
   invalid?: boolean;
   onAmountChange: (v: string) => void;
 }) {
+  const decimals = getShieldToken(tokenId)?.decimals;
   return (
     <label
       data-invalid={invalid ? "true" : undefined}
@@ -740,9 +741,10 @@ function AmountWithToken({
     >
       <input
         value={amount}
-        onChange={(e) => onAmountChange(e.target.value)}
+        onChange={(e) => onAmountChange(sanitizeDecimal(e.target.value, decimals))}
         placeholder="0.00"
         inputMode="decimal"
+        autoComplete="off"
         className="h-full w-full min-w-0 bg-transparent font-mono text-[14px] text-foreground outline-none placeholder:text-muted-foreground"
       />
       <span className="inline-flex shrink-0 items-center gap-1.5 text-[12.5px] font-medium text-muted-foreground">
@@ -751,6 +753,20 @@ function AmountWithToken({
       </span>
     </label>
   );
+}
+
+function sanitizeDecimal(raw: string, decimals?: number): string {
+  let s = raw.replace(/[^\d.]/g, "");
+  const firstDot = s.indexOf(".");
+  if (firstDot !== -1) {
+    s = s.slice(0, firstDot + 1) + s.slice(firstDot + 1).replace(/\./g, "");
+  }
+  if (decimals !== undefined && firstDot !== -1) {
+    const whole = s.slice(0, firstDot);
+    const frac = s.slice(firstDot + 1, firstDot + 1 + decimals);
+    s = decimals === 0 ? whole : `${whole}.${frac}`;
+  }
+  return s;
 }
 
 const CADENCES: { id: ScheduleCadence; label: string }[] = [

@@ -45,7 +45,9 @@ import { appendPayment } from "@/lib/cloak/payment-history";
 import { useFastSend } from "@/lib/cloak/use-fast-send";
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanTxUrl } from "@/lib/solana/explorer";
+import { AmountInput } from "@/components/cloak/amount-input";
 import { InlineError } from "@/components/cloak/inline-error";
+import { useWalletBalances } from "@/lib/cloak/use-wallet-balances";
 import { toast, toastCloakError } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
@@ -133,6 +135,7 @@ export default function PayPage() {
 
   const wallet = useWallet();
   const fastSend = useFastSend();
+  const walletBalances = useWalletBalances();
   const isMobile = useIsMobile();
   const [confirmOpen, setConfirmOpen] = React.useState(false);
 
@@ -164,11 +167,19 @@ export default function PayPage() {
     fastSend.status === "deposit-submit" ||
     fastSend.status === "withdraw-proof" ||
     fastSend.status === "withdraw-submit";
+  const walletTokenBalance = walletBalances.balances[token] ?? 0n;
+  const amountBaseUnits =
+    amountValid && shieldToken
+      ? toBaseUnits(amount, shieldToken.decimals)
+      : 0n;
+  const overWalletBalance =
+    amountValid && wallet.connected && amountBaseUnits > walletTokenBalance;
   const canSubmit =
     amountValid &&
     addressValid &&
     tokenSupported &&
     wallet.connected &&
+    !overWalletBalance &&
     !submitting;
 
   const numericAmount = amountValid ? Number(amount) : 0;
@@ -343,26 +354,26 @@ export default function PayPage() {
           <div className="flex flex-col gap-2">
             <Label htmlFor="amount">Amount</Label>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
+              <AmountInput
                 id="amount"
-                inputMode="decimal"
                 placeholder="0.00"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onValueChange={setAmount}
+                decimals={shieldToken?.decimals}
                 onBlur={() => setAmountTouched(true)}
-                invalid={showAmountError}
-                aria-invalid={showAmountError || undefined}
+                invalid={showAmountError || overWalletBalance}
+                aria-invalid={showAmountError || overWalletBalance || undefined}
                 aria-describedby={showAmountError ? "amount-error" : undefined}
                 className="font-mono sm:flex-1"
                 trailingIcon={
-                  amountValid ? (
+                  amountValid && !overWalletBalance ? (
                     <HugeiconsIcon
                       icon={CheckmarkCircle01Icon}
                       size={14}
                       strokeWidth={2}
                       className="text-primary"
                     />
-                  ) : showAmountError ? (
+                  ) : showAmountError || overWalletBalance ? (
                     <HugeiconsIcon
                       icon={Alert02Icon}
                       size={14}
@@ -411,8 +422,22 @@ export default function PayPage() {
             <FieldFootnote
               id="amount"
               hint={recipientHint}
-              error={showAmountError ? amountErrorMessage(amountError!) : null}
+              error={
+                overWalletBalance && shieldToken
+                  ? `Wallet only has ${formatBalance(walletTokenBalance, shieldToken.decimals)} ${token}.`
+                  : showAmountError
+                    ? amountErrorMessage(amountError!)
+                    : null
+              }
             />
+            {wallet.connected && shieldToken && (
+              <p className="text-[11px] text-muted-foreground">
+                Wallet:{" "}
+                <span className="font-mono text-foreground/80">
+                  {formatBalance(walletTokenBalance, shieldToken.decimals)} {token}
+                </span>
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-2">
@@ -808,6 +833,15 @@ function formatAmount(n: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 6,
   });
+}
+
+function formatBalance(amount: bigint, decimals: number): string {
+  const base = 10n ** BigInt(decimals);
+  const whole = amount / base;
+  const frac = amount % base;
+  if (frac === 0n) return whole.toString();
+  const fracStr = frac.toString().padStart(decimals, "0").replace(/0+$/, "");
+  return `${whole.toString()}.${fracStr}`;
 }
 
 function TransactionProgress({

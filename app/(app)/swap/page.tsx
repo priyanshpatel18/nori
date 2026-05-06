@@ -14,9 +14,11 @@ import * as React from "react";
 
 import { ShieldIcon, VerifiedTickIcon } from "@/components/Icons";
 import { PageHeader } from "@/components/app-shell/page-header";
+import { AmountInput } from "@/components/cloak/amount-input";
 import { InlineError } from "@/components/cloak/inline-error";
 import { SlippageInput } from "@/components/cloak/slippage-input";
 import { TokenLogo, TokenSelector } from "@/components/cloak/token-selector";
+import { useWalletBalances } from "@/lib/cloak/use-wallet-balances";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -95,6 +97,7 @@ export default function SwapPage() {
   const wallet = useWallet();
   const swap = useSwap();
   const recovery = useSwapRecovery();
+  const walletBalances = useWalletBalances();
   const [lastSwap, setLastSwap] = React.useState<{
     sellToken: ShieldTokenId;
     buyToken: ShieldTokenId;
@@ -153,6 +156,14 @@ export default function SwapPage() {
       (swap.depositTx.status !== "pending" ||
         swap.openSwapStateTx.status !== "pending"));
 
+  const sellWalletBalance = walletBalances.balances[sell] ?? 0n;
+  const sellAmountBaseUnits =
+    amountValid && sellToken
+      ? toBaseUnits(amount, sellToken.decimals)
+      : 0n;
+  const overWalletBalance =
+    amountValid && wallet.connected && sellAmountBaseUnits > sellWalletBalance;
+
   // Swap submission is paused. Settlements have been timing out at the
   // relay; the relay's own refund path runs but races nori's auto-refund,
   // which then trips UtxoAlreadySpentError on the local fullWithdraw. Net
@@ -165,6 +176,7 @@ export default function SwapPage() {
     wallet.connected &&
     !submitting &&
     amountValid &&
+    !overWalletBalance &&
     !!sellToken &&
     !!buyToken &&
     status === "ready" &&
@@ -279,25 +291,25 @@ export default function SwapPage() {
             </div>
             <div className="flex items-center gap-3">
               <TokenLogo id={sell} className="size-7" />
-              <Input
+              <AmountInput
                 id="sell-amount"
-                inputMode="decimal"
                 placeholder="0.00"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onValueChange={setAmount}
+                decimals={sellDecimals}
                 onBlur={() => setAmountTouched(true)}
-                invalid={showAmountError}
-                aria-invalid={showAmountError || undefined}
+                invalid={showAmountError || overWalletBalance}
+                aria-invalid={showAmountError || overWalletBalance || undefined}
                 className="border-transparent bg-transparent! font-mono text-[18px] focus-within:border-transparent"
                 trailingIcon={
-                  amountValid ? (
+                  amountValid && !overWalletBalance ? (
                     <HugeiconsIcon
                       icon={CheckmarkCircle01Icon}
                       size={14}
                       strokeWidth={2}
                       className="text-primary"
                     />
-                  ) : showAmountError ? (
+                  ) : showAmountError || overWalletBalance ? (
                     <HugeiconsIcon
                       icon={Alert02Icon}
                       size={14}
@@ -311,6 +323,28 @@ export default function SwapPage() {
             {showAmountError && (
               <p className="text-[11.5px] text-destructive">
                 {amountErrorMessage(amountError!)}
+              </p>
+            )}
+            {overWalletBalance && sellToken && (
+              <p className="text-[11.5px] text-destructive">
+                Wallet only has{" "}
+                {formatBaseUnitsString(
+                  sellWalletBalance.toString(),
+                  sellToken.decimals,
+                )}{" "}
+                {sell}.
+              </p>
+            )}
+            {wallet.connected && sellToken && (
+              <p className="text-[11px] text-muted-foreground">
+                Wallet:{" "}
+                <span className="font-mono text-foreground/80">
+                  {formatBaseUnitsString(
+                    sellWalletBalance.toString(),
+                    sellToken.decimals,
+                  )}{" "}
+                  {sell}
+                </span>
               </p>
             )}
           </div>

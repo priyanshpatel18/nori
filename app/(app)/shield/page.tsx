@@ -23,6 +23,7 @@ import {
   type IconProps,
 } from "@/components/Icons";
 import { PageHeader } from "@/components/app-shell/page-header";
+import { AmountInput } from "@/components/cloak/amount-input";
 import { EmptyState } from "@/components/cloak/empty-state";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
 import { ConnectButton } from "@/components/solana/connect-button";
@@ -40,6 +41,7 @@ import { useOnChainBalance } from "@/lib/cloak/use-onchain-balance";
 import { useRecoverSpendable } from "@/lib/cloak/use-recover-spendable";
 import { useShield } from "@/lib/cloak/use-shield";
 import { useShieldedBalance } from "@/lib/cloak/use-shielded-balance";
+import { useWalletBalances } from "@/lib/cloak/use-wallet-balances";
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanTxUrl } from "@/lib/solana/explorer";
 import { InlineError } from "@/components/cloak/inline-error";
@@ -80,12 +82,19 @@ const TOKEN_LOGO: Record<ShieldTokenId, React.ComponentType<{ className?: string
   USDT: UsdtLogo,
 };
 
+// Reserve set aside when computing Max for a SOL deposit so the wallet can
+// still cover the network fee (a few thousand lamports) plus any rent for
+// new ATAs the deposit may create. Conservative; users can always type in
+// the exact amount themselves.
+const SOL_DEPOSIT_RESERVE = 10_000_000n; // 0.01 SOL
+
 export default function ShieldPage() {
   const wallet = useWallet();
   const balance = useShieldedBalance();
   const onChain = useOnChainBalance();
   const recover = useRecoverSpendable();
   const shield = useShield();
+  const walletBalances = useWalletBalances();
 
   const tokens = React.useMemo(() => listShieldTokens(), []);
   const [action, setAction] = React.useState<Action>("deposit");
@@ -122,6 +131,26 @@ export default function ShieldPage() {
     ? balance.unspent.filter((u) => u.mint === token.mint.toBase58())
     : [];
 
+  const walletBalance = token
+    ? walletBalances.balances[token.id] ?? 0n
+    : 0n;
+  // What the user can actually spend in the current action: deposit pulls
+  // from the wallet, send/withdraw pulls from shielded notes.
+  const availableForAction = action === "deposit" ? walletBalance : tokenBalance;
+  // For a SOL deposit, hold back a small reserve so the wallet still has
+  // enough for tx fees and ATA rent.
+  const maxForAction =
+    action === "deposit" && token?.id === "SOL"
+      ? availableForAction > SOL_DEPOSIT_RESERVE
+        ? availableForAction - SOL_DEPOSIT_RESERVE
+        : 0n
+      : availableForAction;
+  const amountBaseUnits =
+    amountValid && token ? toBaseUnits(amount, token.decimals) : 0n;
+  const overBalance =
+    amountValid && amountBaseUnits > availableForAction;
+  const overMax = amountValid && amountBaseUnits > maxForAction;
+
   type LastSubmit = {
     action: Action;
     amount: string;
@@ -142,8 +171,8 @@ export default function ShieldPage() {
     e.preventDefault();
     if (!token || !wallet.publicKey || !amountValid) return;
     if (action === "send" && !recipientValid) return;
+    if (overBalance) return;
 
-    const amountBaseUnits = toBaseUnits(amount, token.decimals);
     const recipientPk =
       action === "deposit"
         ? wallet.publicKey
@@ -212,6 +241,7 @@ export default function ShieldPage() {
     !token ||
     !amountValid ||
     (action === "send" && !recipientValid) ||
+    overBalance ||
     isProcessing;
 
   return (
@@ -308,13 +338,14 @@ export default function ShieldPage() {
               <div className="flex flex-col gap-2">
                 <Label htmlFor="amount">Amount</Label>
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <Input
+                  <AmountInput
                     id="amount"
-                    inputMode="decimal"
                     placeholder="0.00"
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    onValueChange={setAmount}
+                    decimals={token?.decimals}
                     onFocus={() => shield.prewarm()}
+                    invalid={overBalance || undefined}
                     className="font-mono sm:flex-1"
                   />
                   <div className="flex w-full items-center gap-1.5 rounded-xl border border-border bg-background/50 p-1 sm:w-auto">
@@ -350,12 +381,12 @@ export default function ShieldPage() {
                     })}
                   </div>
                 </div>
-                {token && action !== "deposit" && (
-                  <div className="flex items-center justify-between gap-2 text-[12px] text-muted-foreground">
+                {token && wallet.connected && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-muted-foreground">
                     <span>
-                      Available:{" "}
+                      {action === "deposit" ? "Wallet" : "Available"}:{" "}
                       <span className="font-mono text-foreground">
-                        {formatBaseUnits(tokenBalance, token.decimals)}{" "}
+                        {formatBaseUnits(availableForAction, token.decimals)}{" "}
                         {token.id}
                       </span>
                     </span>
@@ -364,10 +395,10 @@ export default function ShieldPage() {
                         type="button"
                         onClick={() =>
                           setAmount(
-                            formatBaseUnits(tokenBalance / 2n, token.decimals),
+                            formatBaseUnits(maxForAction / 2n, token.decimals),
                           )
                         }
-                        disabled={tokenBalance <= 0n}
+                        disabled={maxForAction <= 0n}
                         className="rounded-md border border-border bg-background/60 px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Half
@@ -376,10 +407,10 @@ export default function ShieldPage() {
                         type="button"
                         onClick={() =>
                           setAmount(
-                            formatBaseUnits(tokenBalance, token.decimals),
+                            formatBaseUnits(maxForAction, token.decimals),
                           )
                         }
-                        disabled={tokenBalance <= 0n}
+                        disabled={maxForAction <= 0n}
                         className="rounded-md border border-border bg-background/60 px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Max
@@ -387,6 +418,23 @@ export default function ShieldPage() {
                     </div>
                   </div>
                 )}
+                {overBalance && token && (
+                  <p className="text-[11.5px] text-destructive">
+                    Amount exceeds your{" "}
+                    {action === "deposit" ? "wallet" : "shielded"} balance of{" "}
+                    {formatBaseUnits(availableForAction, token.decimals)}{" "}
+                    {token.id}.
+                  </p>
+                )}
+                {!overBalance &&
+                  overMax &&
+                  action === "deposit" &&
+                  token?.id === "SOL" && (
+                    <p className="text-[11.5px] text-amber-500">
+                      Leave a small reserve for network fees. Max button caps at{" "}
+                      {formatBaseUnits(maxForAction, token.decimals)} {token.id}.
+                    </p>
+                  )}
               </div>
 
               <FancyButton
