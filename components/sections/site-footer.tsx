@@ -43,8 +43,8 @@ const NAV: { heading: string; items: { label: string; href: string }[] }[] = [
 export function SiteFooter() {
   return (
     <footer className="relative border-t border-border bg-background">
-      <div className="mx-auto w-full max-w-6xl px-6 pt-20 pb-10 sm:px-8">
-        <div className="grid gap-12 lg:grid-cols-[1.1fr_2fr]">
+      <div className="mx-auto w-full max-w-6xl px-4 pt-14 pb-10 sm:px-8 sm:pt-20">
+        <div className="grid gap-10 sm:gap-12 lg:grid-cols-[1.1fr_2fr]">
           <div className="flex flex-col gap-6">
             <NoriWordmark />
 
@@ -60,7 +60,7 @@ export function SiteFooter() {
               <Label htmlFor="footer-email" hint="No spam, ever">
                 Get the launch note
               </Label>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
                   id="footer-email"
                   name="email"
@@ -75,7 +75,12 @@ export function SiteFooter() {
                     />
                   }
                 />
-                <FancyButton type="submit" variant="primary" size="md">
+                <FancyButton
+                  type="submit"
+                  variant="primary"
+                  size="md"
+                  className="self-start sm:self-auto"
+                >
                   Notify me
                   <HugeiconsIcon
                     icon={ArrowRight01Icon}
@@ -117,7 +122,7 @@ export function SiteFooter() {
           <p className="font-mono text-[12px] text-muted-foreground">
             © {new Date().getFullYear()} Nori Labs. All rights reserved.
           </p>
-          <div className="flex items-center gap-5 text-[13px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-muted-foreground">
             <Link
               href="https://x.com/UseNori"
               className="transition-colors hover:text-primary"

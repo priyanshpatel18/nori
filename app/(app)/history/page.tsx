@@ -69,7 +69,7 @@ const FILTERS: { id: FilterId; label: string }[] = [
   { id: "received", label: "Received" },
 ];
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 4;
 
 export default function HistoryPage() {
   const [query, setQuery] = React.useState("");
@@ -263,7 +263,7 @@ export default function HistoryPage() {
           />
         </div>
 
-        <ul className="flex flex-col gap-2">
+        <ul className="scrollbar-cloak flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
           {pagedGroups.map((g, i) =>
             g.kind === "single" ? (
               g.record.swap ? (
@@ -361,7 +361,7 @@ function Pagination({
   const atEnd = page >= pageCount - 1;
 
   return (
-    <div className="flex items-center justify-between gap-3 pt-1">
+    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
       <p className="text-[11.5px] text-muted-foreground">
         <span className="font-mono text-foreground/80">
           {pageStart + 1}–{pageEnd}
@@ -437,7 +437,7 @@ function FilterTabs({
   };
 
   return (
-    <div className="flex h-9 items-center gap-1 rounded-xl border border-border bg-input/60 p-1 sm:self-start">
+    <div className="scrollbar-cloak flex h-9 max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-border bg-input/60 p-1 sm:self-start sm:overflow-visible">
       {FILTERS.map((f) => {
         const isActive = value === f.id;
         const count = countFor(f.id);
@@ -516,7 +516,7 @@ function DateRangeBar({
         max={to || undefined}
         onChange={(e) => onFromChange(e.target.value)}
         aria-label="From date"
-        className="h-9 w-[10.5rem] px-2.5"
+        className="h-9 min-w-0 flex-1 px-2.5 sm:flex-none sm:w-[10.5rem]"
       />
       <span className="text-[11px] text-muted-foreground/60">→</span>
       <Input
@@ -526,7 +526,7 @@ function DateRangeBar({
         min={from || undefined}
         onChange={(e) => onToChange(e.target.value)}
         aria-label="To date"
-        className="h-9 w-[10.5rem] px-2.5"
+        className="h-9 min-w-0 flex-1 px-2.5 sm:flex-none sm:w-[10.5rem]"
       />
       {active && (
         <Button
@@ -943,7 +943,7 @@ function SingleRow({ tx, index }: { tx: PaymentRecord; index: number }) {
         duration: 0.28,
         ease: [0.22, 1, 0.36, 1],
       }}
-      className="group flex items-center gap-4 rounded-xl border border-border bg-card/40 px-4 py-3.5 transition-colors hover:border-primary/30 hover:bg-card/70"
+      className="group flex items-center gap-3 rounded-xl border border-border bg-card/40 px-3 py-3 transition-colors hover:border-primary/30 hover:bg-card/70 sm:gap-4 sm:px-4 sm:py-3.5"
     >
       <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
         <HugeiconsIcon icon={ArrowUp01Icon} size={14} strokeWidth={2} />
@@ -965,7 +965,7 @@ function SingleRow({ tx, index }: { tx: PaymentRecord; index: number }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-4">
         <div className="text-right">
           <p className="font-mono text-[13.5px] text-foreground">
             −{formattedNet}{" "}
@@ -1006,7 +1006,7 @@ function SwapRow({ tx, index }: { tx: PaymentRecord; index: number }) {
         duration: 0.28,
         ease: [0.22, 1, 0.36, 1],
       }}
-      className="group flex items-center gap-4 rounded-xl border border-border bg-card/40 px-4 py-3.5 transition-colors hover:border-primary/30 hover:bg-card/70"
+      className="group flex items-center gap-3 rounded-xl border border-border bg-card/40 px-3 py-3 transition-colors hover:border-primary/30 hover:bg-card/70 sm:gap-4 sm:px-4 sm:py-3.5"
     >
       <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
         <HugeiconsIcon icon={Exchange01Icon} size={14} strokeWidth={2} />
@@ -1028,7 +1028,7 @@ function SwapRow({ tx, index }: { tx: PaymentRecord; index: number }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-4">
         <div className="text-right">
           <p className="font-mono text-[13.5px] text-foreground">
             −{sellFormatted}{" "}
@@ -1083,7 +1083,7 @@ function ReceivedRow({
         duration: 0.28,
         ease: [0.22, 1, 0.36, 1],
       }}
-      className="group flex items-center gap-4 rounded-xl border border-border bg-card/40 px-4 py-3.5 transition-colors hover:border-primary/30 hover:bg-card/70"
+      className="group flex items-center gap-3 rounded-xl border border-border bg-card/40 px-3 py-3 transition-colors hover:border-primary/30 hover:bg-card/70 sm:gap-4 sm:px-4 sm:py-3.5"
     >
       <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
         <HugeiconsIcon icon={ArrowDown01Icon} size={14} strokeWidth={2} />
@@ -1107,7 +1107,7 @@ function ReceivedRow({
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-4">
         <div className="text-right">
           <p className="font-mono text-[13.5px] text-emerald-400">
             +{formattedNet}{" "}
@@ -1185,7 +1185,7 @@ function BatchRow({
           onClick={() => setOpen(true)}
           // The whole row is the click target — override variant defaults
           // (h-9, rounded-4xl, centered, no border) so it fills the card.
-          className="group flex h-auto w-full items-center justify-start gap-4 rounded-none px-4 py-3.5 text-left hover:bg-transparent"
+          className="group flex h-auto w-full items-center justify-start gap-3 rounded-none px-3 py-3 text-left hover:bg-transparent sm:gap-4 sm:px-4 sm:py-3.5"
         >
           <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
             <HugeiconsIcon
@@ -1205,17 +1205,17 @@ function BatchRow({
                 {sigShort}
               </span>
             </div>
-            <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-muted-foreground">
               <span>{dateLabel}</span>
               <DirChip direction="out" />
               <TypeChip>{batchLabel}</TypeChip>
-              <span className="text-muted-foreground/70">
+              <span className="hidden text-muted-foreground/70 sm:inline">
                 · Show recipients
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-4">
             <div className="text-right">
               <p className="font-mono text-[13.5px] text-foreground">
                 −{formatBaseUnits(totalNet.toString(), decimals)}{" "}

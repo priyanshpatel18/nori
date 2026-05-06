@@ -597,8 +597,8 @@ function Receipt({
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border">
-        <div className="scrollbar-cloak max-h-[360px] overflow-y-auto">
-          <table className="w-full text-left text-[12.5px]">
+        <div className="scrollbar-cloak max-h-[360px] overflow-x-auto overflow-y-auto">
+          <table className="w-full min-w-[480px] text-left text-[12.5px]">
             <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur">
               <tr className="border-b border-border text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                 <th className="px-3 py-2 font-medium">#</th>
@@ -746,8 +746,8 @@ function PreviewTable({
 
   return (
     <div className="overflow-hidden rounded-xl border border-border">
-      <div className="scrollbar-cloak max-h-[420px] overflow-y-auto">
-        <table className="w-full text-left text-[12.5px]">
+      <div className="scrollbar-cloak max-h-[420px] overflow-x-auto overflow-y-auto">
+        <table className="w-full min-w-[560px] text-left text-[12.5px]">
           <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur">
             <tr className="border-b border-border text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
               <th className="px-3 py-2 font-medium">#</th>

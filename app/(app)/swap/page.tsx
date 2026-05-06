@@ -207,7 +207,7 @@ export default function SwapPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-          className="flex flex-col gap-3 rounded-2xl border border-border bg-card/60 p-6 sm:p-8"
+          className="flex min-w-0 flex-col gap-3 rounded-2xl border border-border bg-card/60 p-6 sm:p-8"
           onSubmit={async (e) => {
             e.preventDefault();
             setAmountTouched(true);
@@ -757,9 +757,9 @@ function SwapProgress({
           role="status"
           aria-live="polite"
         >
-          <div className="flex items-center justify-between text-[11.5px] text-muted-foreground">
-            <span className="truncate pr-2">{message}</span>
-            <span className="font-mono tabular-nums text-foreground/80">
+          <div className="flex items-center justify-between gap-2 text-[11.5px] text-muted-foreground">
+            <span className="min-w-0 flex-1 truncate">{message}</span>
+            <span className="shrink-0 font-mono tabular-nums text-foreground/80">
               {display}%
             </span>
           </div>

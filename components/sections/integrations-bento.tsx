@@ -173,7 +173,7 @@ export function IntegrationsBento() {
   return (
     <section
       id="integrations"
-      className="relative mx-auto w-full max-w-6xl px-6 py-24 sm:px-8"
+      className="relative mx-auto w-full max-w-6xl px-4 py-16 sm:px-8 sm:py-24"
     >
       <div className="mb-10 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -185,7 +185,7 @@ export function IntegrationsBento() {
             />
             Built on the rails you already use
           </Badge>
-          <h2 className="mt-2 max-w-xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+          <h2 className="mt-2 max-w-xl text-[26px] font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
             One pool. Every Solana wallet. Every dollar.
           </h2>
         </div>
@@ -201,14 +201,14 @@ export function IntegrationsBento() {
       </div>
 
       <div className="mt-6 flex flex-col items-start gap-2 text-[12.5px] text-muted-foreground sm:flex-row sm:items-center sm:gap-3">
-        <span className="inline-flex items-center gap-2">
+        <span className="flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:w-auto sm:flex-nowrap">
           <HugeiconsIcon
             icon={MailSend01Icon}
             size={14}
             strokeWidth={1.8}
           />
           Mainnet program
-          <span className="font-mono text-foreground/80">
+          <span className="min-w-0 break-all font-mono text-[11.5px] text-foreground/80 sm:text-[12.5px]">
             zh1eLd6rSphLejbFfJEneUwzHRfMKxgzrgkfwA6qRkW
           </span>
         </span>

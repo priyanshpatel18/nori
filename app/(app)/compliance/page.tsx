@@ -168,7 +168,7 @@ export default function CompliancePage() {
   );
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+    <div className="flex w-full flex-col lg:min-h-0 lg:flex-1 lg:overflow-hidden">
       <PageHeader
         eyebrow="Selective disclosure"
         title="Compliance"
@@ -176,7 +176,7 @@ export default function CompliancePage() {
         actions={<ViewingKeyButton />}
       />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2.5 p-4 sm:p-5">
+      <div className="flex flex-col gap-2.5 p-4 sm:p-5 lg:min-h-0 lg:flex-1">
         <div className="shrink-0">
           <SummaryStats
             summaries={summaries}
@@ -186,8 +186,8 @@ export default function CompliancePage() {
           />
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-3 lg:grid-cols-[1.4fr_1fr]">
-          <div className="flex min-h-0 flex-col">
+        <div className="flex flex-col gap-3 lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[1.4fr_1fr] lg:grid-rows-[minmax(0,1fr)]">
+          <div className="flex flex-col lg:min-h-0">
             <IssueViewingKey
               fromDate={fromDate}
               toDate={toDate}
@@ -200,8 +200,8 @@ export default function CompliancePage() {
             />
           </div>
 
-          <div className="flex h-full min-h-0 flex-col gap-3">
-            <div className="scrollbar-cloak flex max-h-[50%] shrink-0 flex-col overflow-y-auto">
+          <div className="flex flex-col gap-3 lg:h-full lg:min-h-0">
+            <div className="flex shrink-0 flex-col lg:scrollbar-cloak lg:max-h-[50%] lg:overflow-y-auto">
               <ActiveKeysCard
                 keys={issuedKeys}
                 walletReady={Boolean(issuer)}

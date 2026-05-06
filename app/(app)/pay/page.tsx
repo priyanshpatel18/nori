@@ -26,6 +26,14 @@ import {
   ProgressIndicator,
   ProgressTrack,
 } from "@/components/ui/progress";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Progress as ProgressPrimitive } from "@base-ui/react/progress";
 import {
   getShieldToken,
@@ -124,6 +132,8 @@ export default function PayPage() {
 
   const wallet = useWallet();
   const fastSend = useFastSend();
+  const isMobile = useIsMobile();
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
 
   const [lastSend, setLastSend] = React.useState<{
     amount: number;
@@ -179,6 +189,72 @@ export default function PayPage() {
       </>
     ) : undefined;
 
+  const runSend = React.useCallback(async () => {
+    if (!shieldToken || !wallet.connected) return;
+    setLastSend({
+      amount: numericAmount,
+      net: recipientReceives,
+      token,
+      recipient: recipient.trim(),
+    });
+    const toastId = toast.loading("Sending privately", {
+      description: `${numericAmount} ${token}`,
+    });
+    try {
+      const amountBaseUnits = toBaseUnits(amount, shieldToken.decimals);
+      const recipientPubkey = new PublicKey(recipient.trim());
+      const result = await fastSend.send({
+        amountBaseUnits,
+        mint: shieldToken.mint,
+        recipient: recipientPubkey,
+      });
+      if (wallet.publicKey) {
+        appendPayment(wallet.publicKey.toBase58(), solanaConfig.cluster, {
+          id: result.depositSignature,
+          cluster: solanaConfig.cluster,
+          sender: wallet.publicKey.toBase58(),
+          recipient: recipientPubkey.toBase58(),
+          token,
+          mint: shieldToken.mint.toBase58(),
+          decimals: shieldToken.decimals,
+          amountRaw: amountBaseUnits.toString(),
+          netRaw: netBaseUnits(amountBaseUnits, token === "SOL").toString(),
+          depositSignature: result.depositSignature,
+          withdrawSignature: result.withdrawSignature,
+          timestamp: Date.now(),
+          source: "pay",
+        });
+      }
+      toast.success("Payment sent privately", {
+        id: toastId,
+        description: `${recipientReceives} ${token} delivered`,
+        action: {
+          label: "View",
+          onClick: () =>
+            window.open(
+              solscanTxUrl(result.withdrawSignature),
+              "_blank",
+              "noopener,noreferrer",
+            ),
+        },
+      });
+    } catch (err) {
+      toast.error("Send failed", {
+        id: toastId,
+        description: formatError(err),
+      });
+    }
+  }, [
+    shieldToken,
+    wallet,
+    amount,
+    recipient,
+    token,
+    numericAmount,
+    recipientReceives,
+    fastSend,
+  ]);
+
   return (
     <>
       <PageHeader
@@ -209,69 +285,18 @@ export default function PayPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-          className="flex flex-col gap-6 rounded-2xl border border-border bg-card/60 p-6 sm:p-8"
-          onSubmit={async (e) => {
+          className="flex min-w-0 flex-col gap-6 rounded-2xl border border-border bg-card/60 p-6 sm:p-8"
+          onSubmit={(e) => {
             e.preventDefault();
             setAmountTouched(true);
             setRecipientTouched(true);
             if (!amountValid || !addressValid) return;
             if (!shieldToken) return;
             if (!wallet.connected) return;
-            setLastSend({
-              amount: numericAmount,
-              net: recipientReceives,
-              token,
-              recipient: recipient.trim(),
-            });
-            const toastId = toast.loading("Sending privately", {
-              description: `${numericAmount} ${token}`,
-            });
-            try {
-              const amountBaseUnits = toBaseUnits(
-                amount,
-                shieldToken.decimals,
-              );
-              const recipientPubkey = new PublicKey(recipient.trim());
-              const result = await fastSend.send({
-                amountBaseUnits,
-                mint: shieldToken.mint,
-                recipient: recipientPubkey,
-              });
-              if (wallet.publicKey) {
-                appendPayment(wallet.publicKey.toBase58(), solanaConfig.cluster, {
-                  id: result.depositSignature,
-                  cluster: solanaConfig.cluster,
-                  sender: wallet.publicKey.toBase58(),
-                  recipient: recipientPubkey.toBase58(),
-                  token,
-                  mint: shieldToken.mint.toBase58(),
-                  decimals: shieldToken.decimals,
-                  amountRaw: amountBaseUnits.toString(),
-                  netRaw: netBaseUnits(amountBaseUnits, token === "SOL").toString(),
-                  depositSignature: result.depositSignature,
-                  withdrawSignature: result.withdrawSignature,
-                  timestamp: Date.now(),
-                  source: "pay",
-                });
-              }
-              toast.success("Payment sent privately", {
-                id: toastId,
-                description: `${recipientReceives} ${token} delivered`,
-                action: {
-                  label: "View",
-                  onClick: () =>
-                    window.open(
-                      solscanTxUrl(result.withdrawSignature),
-                      "_blank",
-                      "noopener,noreferrer",
-                    ),
-                },
-              });
-            } catch (err) {
-              toast.error("Send failed", {
-                id: toastId,
-                description: formatError(err),
-              });
+            if (isMobile) {
+              setConfirmOpen(true);
+            } else {
+              void runSend();
             }
           }}
           noValidate
@@ -440,7 +465,7 @@ export default function PayPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.32, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
-          className="flex flex-col gap-4"
+          className="hidden flex-col gap-4 md:flex"
         >
           <div className="rounded-2xl border border-border bg-card/60 p-6">
             <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -472,7 +497,7 @@ export default function PayPage() {
             )}
           </div>
 
-          <ul className="flex flex-col gap-2 rounded-2xl border border-border bg-card/40 p-5">
+          <ul className="hidden flex-col gap-2 rounded-2xl border border-border bg-card/40 p-5 sm:flex">
             {[
               { Icon: ShieldIcon, text: "Proof generated locally in your browser." },
               {
@@ -498,6 +523,66 @@ export default function PayPage() {
           </ul>
         </motion.aside>
       </div>
+
+      <Sheet open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <SheetContent
+          side="bottom"
+          className="rounded-t-2xl border-t border-border pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+        >
+          <SheetHeader>
+            <SheetTitle>Confirm payment</SheetTitle>
+            <SheetDescription>
+              Review and sign in your wallet to send privately.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-col gap-4 px-6 pb-2">
+            <dl className="flex flex-col divide-y divide-border rounded-xl border border-border bg-background/40 px-3 text-[13.5px]">
+              <Row
+                label="You send"
+                value={`${formatAmount(numericAmount)} ${token}`}
+              />
+              <Row
+                label="Variable fee"
+                value={`${formatAmount(variableFee)} ${token}`}
+                hint="0.30%"
+              />
+              <Row label="Network fee" value="0.005 SOL" />
+              <Row
+                label="Recipient gets"
+                value={`${formatAmount(recipientReceives)} ${token}`}
+                emphasis
+                accent
+              />
+            </dl>
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                To
+              </span>
+              <span className="break-all font-mono text-[12px] text-foreground/80">
+                {recipient.trim()}
+              </span>
+            </div>
+            <FancyButton
+              type="button"
+              variant="primary"
+              size="lg"
+              className="mt-1 w-full"
+              disabled={!canSubmit}
+              onClick={() => {
+                setConfirmOpen(false);
+                void runSend();
+              }}
+            >
+              Confirm & sign
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                size={14}
+                strokeWidth={2.2}
+              />
+            </FancyButton>
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }
@@ -753,9 +838,9 @@ function TransactionProgress({
           role="status"
           aria-live="polite"
         >
-          <div className="flex items-center justify-between text-[11.5px] text-muted-foreground">
-            <span className="truncate pr-2">{message}</span>
-            <span className="font-mono tabular-nums text-foreground/80">
+          <div className="flex items-center justify-between gap-2 text-[11.5px] text-muted-foreground">
+            <span className="min-w-0 flex-1 truncate">{message}</span>
+            <span className="shrink-0 font-mono tabular-nums text-foreground/80">
               {display}%
             </span>
           </div>

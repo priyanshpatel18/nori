@@ -37,16 +37,16 @@ function TrustStrip() {
   ];
   return (
     <section className="relative border-y border-border bg-background">
-      <div className="mx-auto grid w-full max-w-6xl grid-cols-2 px-6 sm:grid-cols-5 sm:px-8">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-2 px-4 sm:grid-cols-5 sm:px-8">
         {stats.map((s) => (
           <div
             key={s.label}
             className="flex flex-col items-start gap-1 px-2 py-6 sm:px-4"
           >
-            <span className="font-mono text-[20px] tracking-tight text-primary">
+            <span className="font-mono text-[18px] tracking-tight text-primary sm:text-[20px]">
               {s.value}
             </span>
-            <span className="text-[11.5px] uppercase tracking-[0.14em] text-muted-foreground">
+            <span className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground sm:text-[11.5px]">
               {s.label}
             </span>
           </div>
@@ -91,13 +91,13 @@ function HowItWorks() {
   return (
     <section
       id="how"
-      className="relative mx-auto w-full max-w-6xl px-6 py-24 sm:px-8"
+      className="relative mx-auto w-full max-w-6xl px-4 py-16 sm:px-8 sm:py-24"
     >
-      <div className="mb-12 max-w-2xl">
+      <div className="mb-10 max-w-2xl sm:mb-12">
         <p className="text-xs font-medium uppercase tracking-[0.18em] text-primary/80">
           How it works
         </p>
-        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+        <h2 className="mt-2 text-[26px] font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
           Four steps. Quiet from the first click.
         </h2>
       </div>
@@ -141,18 +141,18 @@ function HowItWorks() {
 
 function FinalCta() {
   return (
-    <section className="relative mx-auto w-full max-w-6xl px-6 pb-24 sm:px-8">
-      <div className="overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-b from-primary/5 to-transparent px-8 py-14 sm:px-14">
+    <section className="relative mx-auto w-full max-w-6xl px-4 pb-16 sm:px-8 sm:pb-24">
+      <div className="overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-b from-primary/5 to-transparent px-5 py-10 sm:px-14 sm:py-14">
         <div className="grid gap-8 sm:grid-cols-[1.4fr_1fr] sm:items-end">
           <div>
-            <h2 className="max-w-xl text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
+            <h2 className="max-w-xl text-[26px] font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
               Run your next payroll without putting your team on a public ledger.
             </h2>
-            <p className="mt-4 max-w-md text-[14.5px] leading-7 text-muted-foreground">
+            <p className="mt-4 max-w-md text-[14px] leading-7 text-muted-foreground sm:text-[14.5px]">
               Nori is live on Solana mainnet. Connect your treasury wallet, upload your roster, and run private payroll in a click.
             </p>
           </div>
-          <div className="flex flex-col gap-3 sm:items-end">
+          <div className="flex flex-col items-start gap-3 sm:items-end">
             <Link
               href="/payroll"
               className={fancyButtonVariants({ variant: "primary", size: "xl" })}

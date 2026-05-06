@@ -20,7 +20,7 @@ import { fancyButtonVariants } from "@/components/ui/fancy-button";
 
 function TopBar() {
   return (
-    <header className="relative z-20 mx-auto flex w-full max-w-6xl items-center justify-between px-6 pt-6 sm:px-10">
+    <header className="relative z-20 mx-auto flex w-full max-w-6xl items-center justify-between px-4 pt-5 sm:px-10 sm:pt-6">
       <Link href="/" className="inline-flex items-center">
         <NoriWordmark markClassName="size-6" textClassName="text-[20px]" />
       </Link>
@@ -127,8 +127,8 @@ export function Hero() {
         <TopBar />
       </div>
 
-      <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col items-start px-6 pt-24 pb-32 sm:px-10 sm:pt-32 sm:pb-40">
-        <h1 className="max-w-3xl text-[44px] font-semibold leading-[1.05] tracking-tight text-foreground sm:text-[64px]">
+      <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col items-start px-4 pt-16 pb-24 sm:px-10 sm:pt-32 sm:pb-40">
+        <h1 className="max-w-3xl text-[36px] font-semibold leading-[1.05] tracking-tight text-foreground sm:text-[64px]">
           Your payroll is public on Solana.
           <br />
           <span className="text-muted-foreground">
@@ -136,7 +136,7 @@ export function Hero() {
           </span>
         </h1>
 
-        <p className="mt-6 max-w-xl text-[16.5px] leading-7 text-foreground/80">
+        <p className="mt-5 max-w-xl text-[15px] leading-6 text-foreground/80 sm:mt-6 sm:text-[16.5px] sm:leading-7">
           Pay contributors in SOL, USDC, and USDT through a ZK shielded pool. Upload a CSV, run payroll in one click, and export a compliance report when your auditor asks.
         </p>
 

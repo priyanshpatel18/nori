@@ -358,7 +358,7 @@ function ReportPanel({ report }: { report: ComplianceReport }) {
       </div>
 
       <div className="flex flex-col">
-        <div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 border-b border-border px-1 pb-2 text-[10.5px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+        <div className="hidden grid-cols-[auto_1fr_auto_auto] items-center gap-3 border-b border-border px-1 pb-2 text-[10.5px] font-medium uppercase tracking-[0.18em] text-muted-foreground sm:grid">
           <span>Type</span>
           <span>Counterparty</span>
           <span className="text-right">Amount</span>
@@ -373,16 +373,23 @@ function ReportPanel({ report }: { report: ComplianceReport }) {
             {transactions.map((tx) => (
               <li
                 key={tx.signature ?? tx.commitment}
-                className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 px-1 py-3 text-[13px]"
+                className="flex flex-col gap-1.5 px-1 py-3 text-[13px] sm:grid sm:grid-cols-[auto_1fr_auto_auto] sm:items-center sm:gap-3"
               >
-                <TxTypeBadge type={tx.txType} />
-                <Counterparty value={tx.recipient} signature={tx.signature} />
-                <span className="text-right font-mono tabular-nums">
-                  {formatTxAmount(tx)}
-                </span>
-                <span className="text-right font-mono text-[12px] tabular-nums text-muted-foreground">
-                  {formatTime(tx.timestamp)}
-                </span>
+                <div className="flex items-center justify-between gap-3 sm:contents">
+                  <TxTypeBadge type={tx.txType} />
+                  <span className="font-mono tabular-nums sm:hidden">
+                    {formatTxAmount(tx)}
+                  </span>
+                </div>
+                <div className="flex min-w-0 items-center justify-between gap-3 sm:contents">
+                  <Counterparty value={tx.recipient} signature={tx.signature} />
+                  <span className="hidden text-right font-mono tabular-nums sm:inline">
+                    {formatTxAmount(tx)}
+                  </span>
+                  <span className="text-right font-mono text-[11.5px] tabular-nums text-muted-foreground sm:text-[12px]">
+                    {formatTime(tx.timestamp)}
+                  </span>
+                </div>
               </li>
             ))}
           </ul>

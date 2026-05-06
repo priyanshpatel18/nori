@@ -233,7 +233,7 @@ export default function ShieldPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-          className="flex flex-col gap-6 rounded-2xl border border-border bg-card/60 p-6 sm:p-8"
+          className="flex min-w-0 flex-col gap-6 sm:rounded-2xl sm:border sm:border-border sm:bg-card/60 sm:p-8 lg:self-start"
         >
           <div className="flex items-center gap-1 rounded-xl border border-border bg-background/50 p-1">
             {ACTIONS.map((a) => {
@@ -311,18 +311,6 @@ export default function ShieldPage() {
                 </div>
               )}
 
-              {action === "withdraw" && wallet.publicKey && (
-                <div className="flex flex-col gap-2">
-                  <Label>Recipient</Label>
-                  <div className="rounded-xl border border-border bg-background/40 px-3 py-2.5 font-mono text-[12.5px] text-muted-foreground">
-                    {wallet.publicKey.toBase58()}
-                    <span className="ml-2 text-[11px] uppercase tracking-[0.18em] text-primary/80">
-                      Your wallet
-                    </span>
-                  </div>
-                </div>
-              )}
-
               <div className="flex flex-col gap-2">
                 <Label htmlFor="amount">Amount</Label>
                 <div className="flex flex-col gap-2 sm:flex-row">
@@ -335,7 +323,7 @@ export default function ShieldPage() {
                     onFocus={() => shield.prewarm()}
                     className="font-mono sm:flex-1"
                   />
-                  <div className="flex items-center gap-1.5 rounded-xl border border-border bg-background/50 p-1">
+                  <div className="flex w-full items-center gap-1.5 rounded-xl border border-border bg-background/50 p-1 sm:w-auto">
                     {tokens.map((t) => {
                       const Logo = TOKEN_LOGO[t.id];
                       const isActive = tokenId === t.id;
@@ -345,7 +333,7 @@ export default function ShieldPage() {
                           type="button"
                           onClick={() => setTokenId(t.id)}
                           className={cn(
-                            "relative flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition-colors",
+                            "relative flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition-colors sm:flex-none",
                             isActive
                               ? "text-foreground"
                               : "text-muted-foreground hover:text-foreground",
@@ -585,7 +573,7 @@ export default function ShieldPage() {
               )}
             </div>
           )}
-          <div className="mt-1 flex items-start gap-2 rounded-xl border border-border/60 bg-card/30 p-3 text-[12px] text-muted-foreground">
+          <div className="mt-1 hidden items-start gap-2 rounded-xl border border-border/60 bg-card/30 p-3 text-[12px] text-muted-foreground sm:flex">
             <BalancesIcon size={20} className="mt-0.5 shrink-0 text-primary" />
             <span>
               {onChain.snapshot
@@ -613,10 +601,12 @@ function ProcessingBlock({
   const pct = proofPercent ?? null;
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-border bg-background/40 px-3 py-2.5">
-      <div className="flex items-center justify-between text-[12.5px]">
-        <span className="text-muted-foreground">{detail}</span>
+      <div className="flex items-center justify-between gap-2 text-[12.5px]">
+        <span className="min-w-0 flex-1 truncate text-muted-foreground">
+          {detail}
+        </span>
         {pct !== null && (
-          <span className="font-mono tabular-nums text-foreground">
+          <span className="shrink-0 font-mono tabular-nums text-foreground">
             {Math.round(pct)}%
           </span>
         )}
