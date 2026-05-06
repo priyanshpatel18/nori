@@ -45,7 +45,8 @@ import { appendPayment } from "@/lib/cloak/payment-history";
 import { useFastSend } from "@/lib/cloak/use-fast-send";
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanTxUrl } from "@/lib/solana/explorer";
-import { formatError, toast } from "@/lib/toast";
+import { InlineError } from "@/components/cloak/inline-error";
+import { toast, toastCloakError } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 const TOKENS = [
@@ -239,10 +240,7 @@ export default function PayPage() {
         },
       });
     } catch (err) {
-      toast.error("Send failed", {
-        id: toastId,
-        description: formatError(err),
-      });
+      toastCloakError(toastId, err);
     }
   }, [
     shieldToken,
@@ -453,9 +451,7 @@ export default function PayPage() {
             />
 
             {fastSend.status === "error" && fastSend.error && (
-              <p className="text-[12px] text-destructive">
-                {fastSend.error.message}
-              </p>
+              <InlineError err={fastSend.error} />
             )}
           </div>
         </motion.form>

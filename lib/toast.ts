@@ -1,8 +1,32 @@
 import { toast as sonner, type ExternalToast } from "sonner";
 
+import { formatCloakError, type UiError } from "@/lib/cloak/errors";
+
 export type ToastId = string | number;
 
 export const toast = sonner;
+
+/**
+ * Show a single toast for a Cloak error: title from the mapped category,
+ * description combines message + optional suggestion. Pass an existing
+ * `toastId` to convert a `loading` toast into the error in place.
+ */
+export function toastCloakError(
+  toastIdOrError: ToastId | unknown,
+  err?: unknown,
+): UiError {
+  const ui =
+    err === undefined
+      ? formatCloakError(toastIdOrError)
+      : formatCloakError(err);
+  const id =
+    err === undefined ? undefined : (toastIdOrError as ToastId);
+  const description = ui.suggestion
+    ? `${ui.message} ${ui.suggestion}`
+    : ui.message;
+  sonner.error(ui.title, id !== undefined ? { id, description } : { description });
+  return ui;
+}
 
 type PendingArgs = {
   loading: string;

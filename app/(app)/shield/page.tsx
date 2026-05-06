@@ -40,7 +40,8 @@ import { useShield } from "@/lib/cloak/use-shield";
 import { useShieldedBalance } from "@/lib/cloak/use-shielded-balance";
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanTxUrl } from "@/lib/solana/explorer";
-import { formatError, toast } from "@/lib/toast";
+import { InlineError } from "@/components/cloak/inline-error";
+import { toast, toastCloakError } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 type Action = "deposit" | "send" | "withdraw";
@@ -168,12 +169,6 @@ export default function ShieldPage() {
         : action === "send"
           ? "Shielded transfer sent"
           : "Withdraw complete";
-    const failureLabel =
-      action === "deposit"
-        ? "Deposit failed"
-        : action === "send"
-          ? "Send failed"
-          : "Withdraw failed";
 
     const toastId = toast.loading(loadingLabel, {
       description: `${amount} ${token.id}`,
@@ -206,10 +201,7 @@ export default function ShieldPage() {
           : undefined,
       });
     } catch (err) {
-      toast.error(failureLabel, {
-        id: toastId,
-        description: formatError(err),
-      });
+      toastCloakError(toastId, err);
     }
   };
 
@@ -415,12 +407,7 @@ export default function ShieldPage() {
               )}
 
               {shield.state.status === "error" && shield.state.error && (
-                <p
-                  role="alert"
-                  className="rounded-xl border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-[13px] text-destructive"
-                >
-                  {shield.state.error}
-                </p>
+                <InlineError err={shield.state.error} />
               )}
             </form>
           )}

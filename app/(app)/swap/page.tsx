@@ -14,6 +14,7 @@ import * as React from "react";
 
 import { ShieldIcon, VerifiedTickIcon } from "@/components/Icons";
 import { PageHeader } from "@/components/app-shell/page-header";
+import { InlineError } from "@/components/cloak/inline-error";
 import { SlippageInput } from "@/components/cloak/slippage-input";
 import { TokenLogo, TokenSelector } from "@/components/cloak/token-selector";
 import { FancyButton } from "@/components/ui/fancy-button";
@@ -421,7 +422,7 @@ export default function SwapPage() {
           )}
 
           {swap.status === "error" && swap.error && (
-            <p className="text-[12px] text-destructive">{swap.error.message}</p>
+            <InlineError err={swap.error} />
           )}
 
           {quoteError && (
