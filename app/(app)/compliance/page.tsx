@@ -15,8 +15,10 @@ import { AnimatePresence, motion } from "motion/react";
 import * as React from "react";
 
 import { PageHeader } from "@/components/app-shell/page-header";
+import { EmptyState } from "@/components/cloak/empty-state";
 import { ViewingKeyButton } from "@/components/cloak/viewing-key-button";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
+import { ConnectButton } from "@/components/solana/connect-button";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -177,6 +179,17 @@ export default function CompliancePage() {
       />
 
       <div className="flex flex-col gap-2.5 p-4 sm:p-5 lg:min-h-0 lg:flex-1">
+        {!issuer ? (
+          <EmptyState
+            icon={
+              <HugeiconsIcon icon={KeyIcon} size={20} strokeWidth={1.6} />
+            }
+            title="Connect a wallet to issue viewing keys"
+            description="Compliance keys are bound to your wallet so the auditor can verify the link to your account."
+            action={<ConnectButton />}
+          />
+        ) : (
+          <>
         <div className="shrink-0">
           <SummaryStats
             summaries={summaries}
@@ -218,6 +231,8 @@ export default function CompliancePage() {
             />
           </div>
         </div>
+          </>
+        )}
       </div>
 
       <TxDetailDrawer

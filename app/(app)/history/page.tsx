@@ -20,10 +20,14 @@ import * as React from "react";
 
 import { useWallet } from "@solana/wallet-adapter-react";
 
+import Link from "next/link";
+
 import { PageHeader } from "@/components/app-shell/page-header";
+import { EmptyState } from "@/components/cloak/empty-state";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { fancyButtonVariants } from "@/components/ui/fancy-button";
 import {
   Dialog,
   DialogContent,
@@ -288,37 +292,47 @@ export default function HistoryPage() {
           )}
 
           {ready && filteredGroups.length === 0 && (
-            <motion.li
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25 }}
-              className="grid place-items-center gap-2 rounded-xl border border-dashed border-border bg-card/30 px-6 py-12 text-center"
-            >
-              <HugeiconsIcon
-                icon={Coins01Icon}
-                size={20}
-                strokeWidth={1.6}
-                className="text-muted-foreground"
-              />
-              <p className="text-[13.5px] text-foreground">
-                {records.length + received.length === 0
+            <EmptyState
+              as="li"
+              icon={
+                <HugeiconsIcon
+                  icon={Coins01Icon}
+                  size={20}
+                  strokeWidth={1.6}
+                />
+              }
+              title={
+                records.length + received.length === 0
                   ? "No private payments yet"
                   : emptyForFilter
                     ? `No ${filterLabel(filter).toLowerCase()} payments yet`
                     : dateActive
                       ? "No payments in this date range"
-                      : "No matches"}
-              </p>
-              <p className="text-[12px] text-muted-foreground">
-                {records.length + received.length === 0
-                  ? "Your sent payments will appear here after you make one on Pay. Click Sync received to scan for incoming payments."
+                      : "No matches"
+              }
+              description={
+                records.length + received.length === 0
+                  ? "Your sent payments will appear here after your first run. You can also sync received to scan the chain for incoming payments."
                   : emptyForFilter
                     ? emptyHintFor(filter)
                     : dateActive
                       ? "Widen the date range or clear it to see more results."
-                      : "Try a different filter or clear your search."}
-              </p>
-            </motion.li>
+                      : "Try a different filter or clear your search."
+              }
+              action={
+                records.length + received.length === 0 ? (
+                  <Link
+                    href="/pay"
+                    className={fancyButtonVariants({
+                      variant: "primary",
+                      size: "md",
+                    })}
+                  >
+                    Send your first payment
+                  </Link>
+                ) : undefined
+              }
+            />
           )}
         </ul>
 

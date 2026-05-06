@@ -16,7 +16,9 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/app-shell/page-header";
+import { EmptyState } from "@/components/cloak/empty-state";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
+import { ConnectButton } from "@/components/solana/connect-button";
 import { DueBanner } from "@/components/team/due-banner";
 import { DueRunDialog } from "@/components/team/due-run-dialog";
 import { FancyButton } from "@/components/ui/fancy-button";
@@ -60,6 +62,7 @@ type ParseState =
   | { kind: "error"; fileName: string; message: string };
 
 export default function PayrollPage() {
+  const wallet = useWallet();
   const [drag, setDrag] = React.useState(false);
   const [parse, setParse] = React.useState<ParseState>({ kind: "idle" });
   const inputRef = React.useRef<HTMLInputElement | null>(null);
@@ -111,7 +114,21 @@ export default function PayrollPage() {
         />
 
         <AnimatePresence mode="wait" initial={false}>
-          {showDropzone ? (
+          {!wallet.connected ? (
+            <EmptyState
+              key="connect"
+              icon={
+                <HugeiconsIcon
+                  icon={Upload01Icon}
+                  size={20}
+                  strokeWidth={1.6}
+                />
+              }
+              title="Connect a wallet to run payroll"
+              description="Payroll signs from the connected wallet and pays each recipient privately. Connect to upload a roster."
+              action={<ConnectButton />}
+            />
+          ) : showDropzone ? (
             <motion.label
               key="dropzone"
               htmlFor="roster-upload"

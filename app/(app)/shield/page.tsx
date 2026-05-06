@@ -23,7 +23,9 @@ import {
   type IconProps,
 } from "@/components/Icons";
 import { PageHeader } from "@/components/app-shell/page-header";
+import { EmptyState } from "@/components/cloak/empty-state";
 import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
+import { ConnectButton } from "@/components/solana/connect-button";
 import { Button } from "@/components/ui/button";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
@@ -453,7 +455,16 @@ export default function ShieldPage() {
             </Button>
           </div>
           <div className="flex flex-col gap-2.5">
-            {tokens.map((t) => {
+            {!wallet.publicKey && (
+              <EmptyState
+                size="sm"
+                icon={<ShieldIcon size={18} />}
+                title="Connect to view your shielded balance"
+                description="Once connected, your shielded notes are read locally — never the chain."
+                action={<ConnectButton />}
+              />
+            )}
+            {wallet.publicKey && tokens.map((t) => {
               const Logo = TOKEN_LOGO[t.id];
               const amt = balance.balances[t.id] ?? 0n;
               const noteCount = balance.unspent.filter(
@@ -496,7 +507,7 @@ export default function ShieldPage() {
                 </div>
               );
             })}
-            {tokens.length === 0 && (
+            {wallet.publicKey && tokens.length === 0 && (
               <p className="rounded-xl border border-dashed border-border bg-card/30 px-3 py-4 text-[12.5px] text-muted-foreground">
                 No tokens configured for {solanaConfig.cluster}.
               </p>
