@@ -6,6 +6,7 @@ import {
   CheckmarkCircle01Icon,
   Coins01Icon,
   Delete02Icon,
+  ArrowReloadHorizontalIcon,
   Upload01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -35,6 +36,7 @@ import {
   useBatchPayroll,
   type BatchRowState,
   type BatchRowStatus,
+  type BatchRunSummary,
 } from "@/lib/cloak/use-batch-payroll";
 import {
   parsePayrollCsv,
@@ -295,6 +297,7 @@ function ParsedSummary({
         id: r.row.rowNumber,
         recipient: r.wallet,
         amountBaseUnits: r.amountBaseUnits!,
+        netBaseUnits: r.netBaseUnits!,
       })),
       mint: shieldToken.mint,
       tokenId,
@@ -328,6 +331,33 @@ function ParsedSummary({
       });
     }
   }, [batch, shieldToken, tokenId, validated, wallet.publicKey]);
+
+  const onRetryFailed = React.useCallback(async () => {
+    const runId = batch.summary?.runId;
+    if (!runId || !shieldToken || !wallet.publicKey) return;
+    const outcome = await batch.retryFailed(runId);
+    if (!outcome || !wallet.publicKey) return;
+    const sender = wallet.publicKey.toBase58();
+    for (const result of outcome.results) {
+      if (!result.ok) continue;
+      appendPayment(sender, solanaConfig.cluster, {
+        id: result.payoutSig,
+        cluster: solanaConfig.cluster,
+        sender,
+        recipient: result.recipient,
+        token: tokenId,
+        mint: shieldToken.mint.toBase58(),
+        decimals: shieldToken.decimals,
+        amountRaw: result.amountRaw,
+        netRaw: result.netRaw,
+        depositSignature: outcome.depositSignature,
+        withdrawSignature: result.payoutSig,
+        timestamp: Date.now(),
+        batchId: outcome.depositSignature,
+        source: "payroll",
+      });
+    }
+  }, [batch, shieldToken, tokenId, wallet.publicKey]);
 
   return (
     <motion.section
@@ -460,7 +490,7 @@ function ParsedSummary({
       {state.kind === "ready" &&
         validated.length > 0 &&
         shieldToken &&
-        batch.status !== "done" && (
+        !batch.summary && (
           <PreviewTable
             rows={validated}
             tokenId={tokenId}
@@ -471,55 +501,57 @@ function ParsedSummary({
           />
         )}
 
-      {state.kind === "ready" &&
-        validated.length > 0 &&
-        batch.status !== "done" && (
-          <TotalsCard
-            totals={totals}
-            tokenId={tokenId}
-            tokenDecimals={tokenDecimals}
-          />
-        )}
+      {state.kind === "ready" && validated.length > 0 && !batch.summary && (
+        <TotalsCard
+          totals={totals}
+          tokenId={tokenId}
+          tokenDecimals={tokenDecimals}
+        />
+      )}
 
-      {state.kind === "ready" &&
-        validated.length > 0 &&
-        batch.status !== "done" && (
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <FancyButton
-              type="button"
-              variant="primary"
-              size="lg"
-              disabled={!canRun}
-              onClick={onRun}
-            >
-              {runLabel}
-              <HugeiconsIcon
-                icon={ArrowRight01Icon}
-                size={14}
-                strokeWidth={2.2}
-              />
-            </FancyButton>
+      {state.kind === "ready" && validated.length > 0 && !batch.summary && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <FancyButton
+            type="button"
+            variant="primary"
+            size="lg"
+            disabled={!canRun}
+            onClick={onRun}
+          >
+            {runLabel}
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              size={14}
+              strokeWidth={2.2}
+            />
+          </FancyButton>
 
-            {(batch.phase === "depositing-proof" ||
-              batch.phase === "depositing-submit") && (
-              <span className="inline-flex items-center gap-2 text-[12px] text-muted-foreground">
-                <span className="relative flex size-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/40" />
-                  <span className="relative inline-flex size-1.5 rounded-full bg-primary" />
-                </span>
-                <span className="truncate">
-                  {batch.depositProgress ?? "Shielding into pool"}
-                </span>
+          {(batch.phase === "depositing-proof" ||
+            batch.phase === "depositing-submit") && (
+            <span className="inline-flex items-center gap-2 text-[12px] text-muted-foreground">
+              <span className="relative flex size-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/40" />
+                <span className="relative inline-flex size-1.5 rounded-full bg-primary" />
               </span>
-            )}
-          </div>
-        )}
+              <span className="truncate">
+                {batch.depositProgress ?? "Shielding into pool"}
+              </span>
+            </span>
+          )}
+        </div>
+      )}
 
-      {state.kind === "ready" && batch.status === "done" && batch.summary && (
+      {state.kind === "ready" && batch.summary && (
         <Receipt
           summary={batch.summary}
           validated={validated}
           execRows={batch.rows}
+          retrying={batch.status === "running"}
+          onRetryFailed={
+            batch.summary.runId && batch.summary.failed > 0
+              ? onRetryFailed
+              : null
+          }
           onRunAnother={() => {
             batch.reset();
             onReset();
@@ -534,18 +566,15 @@ function Receipt({
   summary,
   validated,
   execRows,
+  retrying,
+  onRetryFailed,
   onRunAnother,
 }: {
-  summary: {
-    total: number;
-    confirmed: number;
-    failed: number;
-    startedAt: number;
-    finishedAt: number;
-    depositSignature: string | null;
-  };
+  summary: BatchRunSummary;
   validated: ValidatedRow[];
   execRows: Record<number, BatchRowState>;
+  retrying: boolean;
+  onRetryFailed: (() => void | Promise<void>) | null;
   onRunAnother: () => void;
 }) {
   const durationSeconds = (summary.finishedAt - summary.startedAt) / 1000;
@@ -693,10 +722,41 @@ function Receipt({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {onRetryFailed && (
+          <FancyButton
+            type="button"
+            variant="primary"
+            size="md"
+            disabled={retrying}
+            onClick={() => {
+              void onRetryFailed();
+            }}
+          >
+            {retrying ? (
+              <>
+                <span className="relative flex size-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary-foreground/40" />
+                  <span className="relative inline-flex size-1.5 rounded-full bg-primary-foreground" />
+                </span>
+                Retrying {runProgress(execRows)}
+              </>
+            ) : (
+              <>
+                Retry {summary.failed} failed
+                <HugeiconsIcon
+                  icon={ArrowReloadHorizontalIcon}
+                  size={14}
+                  strokeWidth={2.2}
+                />
+              </>
+            )}
+          </FancyButton>
+        )}
         <FancyButton
           type="button"
-          variant="primary"
+          variant={onRetryFailed ? "neutral" : "primary"}
           size="md"
+          disabled={retrying}
           onClick={onRunAnother}
         >
           Run another roster

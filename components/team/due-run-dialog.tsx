@@ -95,14 +95,25 @@ function DueRunBody({
 
     setActiveMint(group.mint);
 
+    const fixedDeducted =
+      group.token.id === "SOL" ? FIXED_FEE_LAMPORTS : 0n;
     const rows = group.members
       .filter((m) => m.schedule)
-      .map((m, i) => ({
-        memberId: m.id,
-        amountBaseUnits: toBaseUnits(m.schedule!.amount, group.token.decimals),
-        recipient: m.wallet,
-        rowId: i + 1,
-      }));
+      .map((m, i) => {
+        const amountBaseUnits = toBaseUnits(
+          m.schedule!.amount,
+          group.token.decimals,
+        );
+        const variableFee = (amountBaseUnits * VARIABLE_FEE_BPS) / 10_000n;
+        const net = amountBaseUnits - variableFee - fixedDeducted;
+        return {
+          memberId: m.id,
+          amountBaseUnits,
+          netBaseUnits: net < 0n ? 0n : net,
+          recipient: m.wallet,
+          rowId: i + 1,
+        };
+      });
 
     const idToRow = new Map(rows.map((r) => [r.rowId, r]));
 
@@ -111,6 +122,7 @@ function DueRunBody({
         id: r.rowId,
         recipient: r.recipient,
         amountBaseUnits: r.amountBaseUnits,
+        netBaseUnits: r.netBaseUnits,
       })),
       mint: group.token.mint,
       tokenId: group.token.id,
@@ -131,13 +143,6 @@ function DueRunBody({
 
       markMemberPaid(solanaConfig.cluster, row.memberId);
 
-      const variableFee =
-        (row.amountBaseUnits * VARIABLE_FEE_BPS) / 10_000n;
-      const fixedDeducted =
-        group.token.id === "SOL" ? FIXED_FEE_LAMPORTS : 0n;
-      const net = row.amountBaseUnits - variableFee - fixedDeducted;
-      const netSafe = net < 0n ? 0n : net;
-
       appendPayment(sender, solanaConfig.cluster, {
         id: result.payoutSig,
         cluster: solanaConfig.cluster,
@@ -147,7 +152,7 @@ function DueRunBody({
         mint: group.token.mint.toBase58(),
         decimals: group.token.decimals,
         amountRaw: row.amountBaseUnits.toString(),
-        netRaw: netSafe.toString(),
+        netRaw: row.netBaseUnits.toString(),
         depositSignature: outcome.depositSignature,
         withdrawSignature: result.payoutSig,
         timestamp: Date.now(),

@@ -21,7 +21,12 @@ export type BatchRowState =
 export type BatchQueueRow = {
   rowId: number;
   recipient: string;
+  /** Gross amount in base units (decimal string, bigint-safe). */
   amountRaw: string;
+  /** What the recipient actually receives after fees, captured at run
+   *  setup so the retry path can write payment-history without having to
+   *  reconstruct the validation pipeline. */
+  netRaw: string;
   state: BatchRowState;
   attempts: number;
   payoutSignature?: string;
@@ -76,6 +81,7 @@ function isQueueRow(value: unknown): value is BatchQueueRow {
     typeof r.rowId === "number" &&
     typeof r.recipient === "string" &&
     typeof r.amountRaw === "string" &&
+    typeof r.netRaw === "string" &&
     typeof r.state === "string" &&
     (r.state === "pending" ||
       r.state === "in-flight" ||
