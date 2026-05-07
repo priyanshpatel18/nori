@@ -393,6 +393,7 @@ const csv = formatComplianceCsv(filterReportByRange(report, from, to));
 
 ## Further reading
 
+- [ARCHITECTURE.md](./ARCHITECTURE.md): runtime surfaces, fast-send + batch + compliance flow diagrams
 - Cloak protocol docs: [docs.cloak.ag](https://docs.cloak.ag)
 - Nori source: [github.com/priyanshpatel18/nori](https://github.com/priyanshpatel18/nori)
 - Live mainnet app: [usenori.xyz](https://usenori.xyz)
