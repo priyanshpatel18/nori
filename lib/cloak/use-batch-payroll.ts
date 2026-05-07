@@ -41,6 +41,10 @@ import {
   saveMerkleTreeCache,
 } from "./merkle-tree-cache";
 import {
+  dismissProofRefreshing,
+  showProofRefreshing,
+} from "./proof-refresh-toast";
+import {
   bigintToHex,
   clearOrphan,
   hexToBigint,
@@ -632,6 +636,11 @@ export function useBatchPayroll() {
           );
 
           const changeUtxo = result.outputUtxos[0];
+          dismissProofRefreshing({
+            flow: "batch",
+            runId,
+            rowId: args.row.id,
+          });
           return {
             ok: true,
             changeUtxo,
@@ -644,6 +653,11 @@ export function useBatchPayroll() {
             (isStaleNoteError(error) || isRootNotFoundError(error)) &&
             args.attempt < STALE_RETRY_MAX
           ) {
+            showProofRefreshing(
+              { flow: "batch", runId, rowId: args.row.id },
+              args.attempt + 2,
+              STALE_RETRY_MAX + 1,
+            );
             // Drop the stale tree on retry so the SDK refetches from chain
             // state instead of replaying the same bad proof.
             clearMerkleTreeCache(solanaConfig.cluster, cloakConfig.programId);
@@ -655,6 +669,11 @@ export function useBatchPayroll() {
               cachedTree: undefined,
             });
           }
+          dismissProofRefreshing({
+            flow: "batch",
+            runId,
+            rowId: args.row.id,
+          });
           logBatchError(error, {
             phase: "row",
             row: args.row,
@@ -993,6 +1012,11 @@ export function useBatchPayroll() {
           );
 
           const changeUtxo = result.outputUtxos[0];
+          dismissProofRefreshing({
+            flow: "batch",
+            runId,
+            rowId: args.row.id,
+          });
           return {
             ok: true,
             changeUtxo,
@@ -1005,6 +1029,11 @@ export function useBatchPayroll() {
             (isStaleNoteError(error) || isRootNotFoundError(error)) &&
             args.attempt < STALE_RETRY_MAX
           ) {
+            showProofRefreshing(
+              { flow: "batch", runId, rowId: args.row.id },
+              args.attempt + 2,
+              STALE_RETRY_MAX + 1,
+            );
             clearMerkleTreeCache(solanaConfig.cluster, cloakConfig.programId);
             cachedTree = undefined;
             await sleep(STALE_RETRY_DELAY_MS);
@@ -1014,6 +1043,11 @@ export function useBatchPayroll() {
               cachedTree: undefined,
             });
           }
+          dismissProofRefreshing({
+            flow: "batch",
+            runId,
+            rowId: args.row.id,
+          });
           logBatchError(error, {
             phase: "row",
             row: args.row,

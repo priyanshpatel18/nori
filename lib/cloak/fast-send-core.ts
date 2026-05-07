@@ -23,6 +23,10 @@ import {
   loadMerkleTreeCache,
   saveMerkleTreeCache,
 } from "@/lib/cloak/merkle-tree-cache";
+import {
+  dismissProofRefreshing,
+  showProofRefreshing,
+} from "@/lib/cloak/proof-refresh-toast";
 import type { SolanaCluster } from "@/lib/solana/config";
 
 export type FastSendPhase =
@@ -241,6 +245,10 @@ export async function fastSendOnce(
         if (cluster) {
           saveMerkleTreeCache(cluster, programId, withdrawResult.merkleTree);
         }
+        dismissProofRefreshing({
+          flow: "fast-send",
+          depositSignature: depositResult.signature,
+        });
         break;
       } catch (err) {
         const recoverable = isRootNotFoundError(err) || isStaleNoteError(err);
@@ -248,8 +256,17 @@ export async function fastSendOnce(
           `withdraw attempt ${attempt} threw: ${describeError(err)} (recoverable=${recoverable})`,
         );
         if (!recoverable || attempt === WITHDRAW_MAX_ATTEMPTS) {
+          dismissProofRefreshing({
+            flow: "fast-send",
+            depositSignature: depositResult.signature,
+          });
           throw err;
         }
+        showProofRefreshing(
+          { flow: "fast-send", depositSignature: depositResult.signature },
+          attempt + 1,
+          WITHDRAW_MAX_ATTEMPTS,
+        );
         // The cached tree is now suspect: drop it from this attempt and
         // wipe the session-storage entry so the next op starts clean.
         cachedTreeForWithdraw = undefined;

@@ -33,6 +33,12 @@ import {
   serializeUtxo,
   updatePendingSwap,
 } from "@/lib/cloak/pending-swaps";
+import {
+  dismissProofRefreshing,
+  showProofRefreshing,
+} from "@/lib/cloak/proof-refresh-toast";
+import { watchSignature } from "@/lib/cloak/tx-watcher";
+import { toast } from "@/lib/toast";
 import type { SolanaCluster } from "@/lib/solana/config";
 import { isStaleNoteError, isSubmittingStatus } from "./fast-send-core";
 
@@ -348,13 +354,28 @@ export async function swapOnce(args: SwapOnceArgs): Promise<SwapOnceResult> {
           },
           sender,
         );
+        dismissProofRefreshing({
+          flow: "swap",
+          depositSignature: depositResult.signature,
+        });
         break;
       } catch (err) {
         const recoverable = isRootNotFoundError(err) || isStaleNoteError(err);
         log.step(
           `swap attempt ${attempt} threw: ${describeError(err)} (recoverable=${recoverable})`,
         );
-        if (!recoverable || attempt === SWAP_MAX_ATTEMPTS) throw err;
+        if (!recoverable || attempt === SWAP_MAX_ATTEMPTS) {
+          dismissProofRefreshing({
+            flow: "swap",
+            depositSignature: depositResult.signature,
+          });
+          throw err;
+        }
+        showProofRefreshing(
+          { flow: "swap", depositSignature: depositResult.signature },
+          attempt + 1,
+          SWAP_MAX_ATTEMPTS,
+        );
         // Wipe the persisted tree so subsequent ops in this tab don't
         // rebuild from the same stale snapshot. The next loop iteration
         // also forces useFreshTree = true.
@@ -406,6 +427,36 @@ export async function swapOnce(args: SwapOnceArgs): Promise<SwapOnceResult> {
         signature: settlementSignature,
         status: "settled",
       });
+
+      // The relay reports settlement as soon as the worker submits Tx2.
+      // Spawn a background watcher to confirm the tx actually lands on
+      // chain at "confirmed" commitment so the user sees a definitive
+      // success toast, even if they navigate away from the swap page.
+      if (settlementSignature) {
+        const sigForWatcher = settlementSignature;
+        void watchSignature(connection, sigForWatcher, {
+          commitment: "confirmed",
+          timeoutMs: 120_000,
+        }).then((outcome) => {
+          if (outcome.kind === "confirmed") {
+            toast.success("Swap settled on chain", {
+              id: `cloak:swap-settled:${sigForWatcher}`,
+              description: shortenSig(sigForWatcher),
+            });
+          } else if (outcome.kind === "failed") {
+            toast.error("Swap settlement failed on chain", {
+              id: `cloak:swap-settled:${sigForWatcher}`,
+              description: outcome.error,
+            });
+          } else if (outcome.kind === "timeout") {
+            toast.warning("Swap settlement still pending", {
+              id: `cloak:swap-settled:${sigForWatcher}`,
+              description:
+                "We stopped watching after 2 minutes. Check Solscan to confirm.",
+            });
+          }
+        });
+      }
     } else {
       log.step("no requestId returned — skipping settlement poll");
     }
@@ -739,6 +790,10 @@ function createSwapStepLogger(
 function describeError(err: unknown): string {
   if (err instanceof Error) return `${err.name}: ${err.message}`;
   return String(err);
+}
+
+function shortenSig(sig: string): string {
+  return sig.length > 10 ? `${sig.slice(0, 4)}…${sig.slice(-4)}` : sig;
 }
 
 function shortKey(key: PublicKey): string {
