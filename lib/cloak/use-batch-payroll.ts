@@ -24,6 +24,11 @@ import { solanaConfig } from "@/lib/solana/config";
 import { cloakConfig } from "./config";
 import { isStaleNoteError, isSubmittingStatus } from "./fast-send-core";
 import {
+  clearMerkleTreeCache,
+  loadMerkleTreeCache,
+  saveMerkleTreeCache,
+} from "./merkle-tree-cache";
+import {
   bigintToHex,
   clearOrphan,
   saveOrphan,
@@ -171,6 +176,12 @@ export function useBatchPayroll() {
 
       let depositResult: TransactResult;
       const ephemeralKeypair = await generateUtxoKeypair();
+      // Reuse the tree from any prior op in this tab so the deposit proof
+      // skips the relay-side commitments fetch.
+      const cachedTreeForDeposit = await loadMerkleTreeCache(
+        solanaConfig.cluster,
+        cloakConfig.programId,
+      );
       try {
         const depositOutput = await createUtxo(total, ephemeralKeypair, mint);
         let inSubmitPhase = false;
@@ -190,6 +201,7 @@ export function useBatchPayroll() {
             signTransaction,
             signMessage,
             enforceViewingKeyRegistration: false,
+            cachedMerkleTree: cachedTreeForDeposit,
             onProgress: (status) =>
               setState((s) => {
                 if (s.phase !== "depositing-proof" && s.phase !== "depositing-submit") {
@@ -279,6 +291,11 @@ export function useBatchPayroll() {
 
       let currentUtxo: Utxo = depositedUtxo;
       let cachedTree: MerkleTree | undefined = depositResult.merkleTree;
+      saveMerkleTreeCache(
+        solanaConfig.cluster,
+        cloakConfig.programId,
+        cachedTree,
+      );
 
       const results: Array<
         | { id: number; ok: true; payoutSig: string }
@@ -301,6 +318,11 @@ export function useBatchPayroll() {
         if (rowOutcome.ok) {
           currentUtxo = rowOutcome.changeUtxo;
           cachedTree = rowOutcome.tree ?? cachedTree;
+          saveMerkleTreeCache(
+            solanaConfig.cluster,
+            cloakConfig.programId,
+            cachedTree,
+          );
           results.push({
             id: row.id,
             ok: true,
@@ -477,8 +499,16 @@ export function useBatchPayroll() {
             (isStaleNoteError(error) || isRootNotFoundError(error)) &&
             args.attempt < STALE_RETRY_MAX
           ) {
+            // Drop the stale tree on retry so the SDK refetches from chain
+            // state instead of replaying the same bad proof.
+            clearMerkleTreeCache(solanaConfig.cluster, cloakConfig.programId);
+            cachedTree = undefined;
             await sleep(STALE_RETRY_DELAY_MS);
-            return runRow({ ...args, attempt: args.attempt + 1 });
+            return runRow({
+              ...args,
+              attempt: args.attempt + 1,
+              cachedTree: undefined,
+            });
           }
           logBatchError(error, {
             phase: "row",

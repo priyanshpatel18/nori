@@ -24,6 +24,11 @@ import {
 
 import { applyBufferPolyfill } from "@/lib/buffer-polyfill";
 import {
+  clearMerkleTreeCache,
+  loadMerkleTreeCache,
+  saveMerkleTreeCache,
+} from "@/lib/cloak/merkle-tree-cache";
+import {
   appendPendingSwap,
   serializeUtxo,
   updatePendingSwap,
@@ -186,6 +191,14 @@ export async function swapOnce(args: SwapOnceArgs): Promise<SwapOnceResult> {
 
   log.step("calling sdk.transact() for deposit");
   let depositResult: TransactResult;
+  // Reuse the cached tree (set by the most recent fast-send / batch / swap
+  // op in this tab) so the deposit proof skips the relay commitments fetch.
+  const cachedTreeForDeposit = await loadMerkleTreeCache(cluster, programId);
+  if (cachedTreeForDeposit) {
+    log.step(
+      `loaded cached merkle tree (length=${cachedTreeForDeposit.length})`,
+    );
+  }
   try {
     depositResult = await transact(
       {
@@ -203,6 +216,7 @@ export async function swapOnce(args: SwapOnceArgs): Promise<SwapOnceResult> {
         signTransaction,
         signMessage,
         enforceViewingKeyRegistration: false,
+        cachedMerkleTree: cachedTreeForDeposit,
         onProgress: (status) => {
           log.sdk(status);
           if (depositPhase === "deposit-proof" && isSubmittingStatus(status)) {
@@ -230,6 +244,7 @@ export async function swapOnce(args: SwapOnceArgs): Promise<SwapOnceResult> {
   }
 
   log.step(`deposit signature: ${depositResult.signature}`);
+  saveMerkleTreeCache(cluster, programId, depositResult.merkleTree);
   onTxUpdate?.({
     kind: "deposit",
     signature: depositResult.signature,
@@ -340,6 +355,10 @@ export async function swapOnce(args: SwapOnceArgs): Promise<SwapOnceResult> {
           `swap attempt ${attempt} threw: ${describeError(err)} (recoverable=${recoverable})`,
         );
         if (!recoverable || attempt === SWAP_MAX_ATTEMPTS) throw err;
+        // Wipe the persisted tree so subsequent ops in this tab don't
+        // rebuild from the same stale snapshot. The next loop iteration
+        // also forces useFreshTree = true.
+        clearMerkleTreeCache(cluster, programId);
         await sleep(SWAP_RETRY_DELAY_MS);
       }
     }
@@ -425,6 +444,7 @@ export async function swapOnce(args: SwapOnceArgs): Promise<SwapOnceResult> {
     const recovery = await attemptRefund({
       depositResult,
       sender,
+      cluster,
       connection,
       programId,
       relayUrl,
@@ -515,6 +535,7 @@ type RecoveryOutcome =
 async function attemptRefund(args: {
   depositResult: TransactResult;
   sender: PublicKey;
+  cluster: SolanaCluster;
   connection: Connection;
   programId: PublicKey;
   relayUrl: string;
@@ -530,6 +551,7 @@ async function attemptRefund(args: {
   const {
     depositResult,
     sender,
+    cluster,
     connection,
     programId,
     relayUrl,
@@ -569,6 +591,7 @@ async function attemptRefund(args: {
     });
 
     log.step(`recovery signature: ${refund.signature}`);
+    saveMerkleTreeCache(cluster, programId, refund.merkleTree);
     onTxUpdate?.({
       kind: "recovery",
       signature: refund.signature,

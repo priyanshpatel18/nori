@@ -7,6 +7,7 @@ import {
   generateUtxoKeypair,
   isRootNotFoundError,
   transact,
+  type MerkleTree,
   type TransactResult,
 } from "@cloak.dev/sdk";
 import {
@@ -17,6 +18,12 @@ import {
 } from "@solana/web3.js";
 
 import { applyBufferPolyfill } from "@/lib/buffer-polyfill";
+import {
+  clearMerkleTreeCache,
+  loadMerkleTreeCache,
+  saveMerkleTreeCache,
+} from "@/lib/cloak/merkle-tree-cache";
+import type { SolanaCluster } from "@/lib/solana/config";
 
 export type FastSendPhase =
   | "deposit-proof"
@@ -39,6 +46,12 @@ export type FastSendOnceArgs = {
   connection: Connection;
   programId: PublicKey;
   relayUrl: string;
+  /**
+   * Cluster the wallet is on. When set, the SDK's Merkle tree is loaded
+   * from / saved to sessionStorage between operations so a follow-up send
+   * doesn't pay for a full relay refetch.
+   */
+  cluster?: SolanaCluster;
   signTransaction: <T extends Transaction | VersionedTransaction>(
     transaction: T,
   ) => Promise<T>;
@@ -76,6 +89,7 @@ export async function fastSendOnce(
     connection,
     programId,
     relayUrl,
+    cluster,
     signTransaction,
     signMessage,
     onPhase,
@@ -108,6 +122,16 @@ export async function fastSendOnce(
     let depositPhase: FastSendPhase = "deposit-proof";
 
     log.step("calling sdk.transact() for deposit");
+    // Hint the SDK with whatever tree we have from a prior op in this tab.
+    // Stale-root errors invalidate it below, so passing it here is safe.
+    const cachedTreeForDeposit = cluster
+      ? await loadMerkleTreeCache(cluster, programId)
+      : undefined;
+    if (cachedTreeForDeposit) {
+      log.step(
+        `loaded cached merkle tree (length=${cachedTreeForDeposit.length})`,
+      );
+    }
     const depositResult = await transact(
       {
         inputUtxos: [await createZeroUtxo(mint)],
@@ -126,6 +150,7 @@ export async function fastSendOnce(
         // Skipping registration drops the extra signMessage popup. Fast-send
         // uses ephemeral UTXOs, so no persistent shielded balance needs scanning.
         enforceViewingKeyRegistration: false,
+        cachedMerkleTree: cachedTreeForDeposit,
         onProgress: (status) => {
           log.sdk(status);
           if (
@@ -147,11 +172,17 @@ export async function fastSendOnce(
 
     log.step(`deposit signature: ${depositResult.signature}`);
 
+    if (cluster) {
+      saveMerkleTreeCache(cluster, programId, depositResult.merkleTree);
+    }
+
     // The relay validates each UTXO's commitment against its just-fetched
     // leaves (SDK dist/index.js:4699) even when we pass cachedMerkleTree.
     // Sleep before the withdraw so the relay's view includes our deposit.
     // Backoff on retry: 4s, 8s, 12s.
     let withdrawResult: TransactResult | undefined;
+    let cachedTreeForWithdraw: MerkleTree | undefined =
+      depositResult.merkleTree;
     for (let attempt = 1; attempt <= WITHDRAW_MAX_ATTEMPTS; attempt += 1) {
       let withdrawPhase: FastSendPhase = "withdraw-proof";
       log.phase("withdraw-proof");
@@ -188,7 +219,7 @@ export async function fastSendOnce(
             signTransaction,
             signMessage,
             enforceViewingKeyRegistration: false,
-            cachedMerkleTree: depositResult.merkleTree,
+            cachedMerkleTree: cachedTreeForWithdraw,
             onProgress: (status) => {
               log.sdk(status);
               if (
@@ -207,6 +238,9 @@ export async function fastSendOnce(
             },
           },
         );
+        if (cluster) {
+          saveMerkleTreeCache(cluster, programId, withdrawResult.merkleTree);
+        }
         break;
       } catch (err) {
         const recoverable = isRootNotFoundError(err) || isStaleNoteError(err);
@@ -216,6 +250,10 @@ export async function fastSendOnce(
         if (!recoverable || attempt === WITHDRAW_MAX_ATTEMPTS) {
           throw err;
         }
+        // The cached tree is now suspect: drop it from this attempt and
+        // wipe the session-storage entry so the next op starts clean.
+        cachedTreeForWithdraw = undefined;
+        if (cluster) clearMerkleTreeCache(cluster, programId);
         await sleep(WITHDRAW_RETRY_DELAY_MS);
       }
     }

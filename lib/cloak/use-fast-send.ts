@@ -7,6 +7,8 @@ import {
 import { PublicKey } from "@solana/web3.js";
 import * as React from "react";
 
+import { solanaConfig } from "@/lib/solana/config";
+
 import { cloakConfig } from "./config";
 import {
   fastSendOnce,
@@ -120,6 +122,7 @@ export function useFastSend() {
           connection,
           programId: cloakConfig.programId,
           relayUrl: cloakConfig.relayUrl,
+          cluster: solanaConfig.cluster,
           signTransaction: wallet.signTransaction,
           signMessage: memoizedSignMessage,
           onPhase: (phase) =>

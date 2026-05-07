@@ -20,6 +20,12 @@ import {
 } from "@solana/web3.js";
 
 import { applyBufferPolyfill } from "@/lib/buffer-polyfill";
+import { isStaleNoteError } from "@/lib/cloak/fast-send-core";
+import {
+  clearMerkleTreeCache,
+  loadMerkleTreeCache,
+  saveMerkleTreeCache,
+} from "@/lib/cloak/merkle-tree-cache";
 import {
   buildRecoverableNoteB64,
   RECOVERABLE_SHIELDS_ENABLED,
@@ -122,36 +128,45 @@ export async function shieldDeposit(
 
   let phase: ShieldPhase = "building-proof";
 
-  const result = await transact(
-    {
-      inputUtxos: [zero],
-      outputUtxos: [output],
-      externalAmount: amountBaseUnits,
-      depositor: walletPublicKey,
-    },
-    {
-      connection,
-      programId,
-      relayUrl,
-      depositorPublicKey: walletPublicKey,
-      walletPublicKey,
-      signTransaction,
-      signMessage,
-      enforceViewingKeyRegistration: false,
-      ...(encryptedNotes ? { encryptedNotes } : {}),
-      onProgress: (status) => {
-        if (phase === "building-proof" && /submit|send|broadcast/i.test(status)) {
-          phase = "submitting";
-          onPhase?.("submitting");
-        } else if (phase === "submitting" && /confirm/i.test(status)) {
-          phase = "confirming";
-          onPhase?.("confirming");
-        }
-        onProgress?.(status);
+  const cachedTree = await loadMerkleTreeCache(cluster, programId);
+  let result;
+  try {
+    result = await transact(
+      {
+        inputUtxos: [zero],
+        outputUtxos: [output],
+        externalAmount: amountBaseUnits,
+        depositor: walletPublicKey,
       },
-      onProofProgress: (pct) => onProofProgress?.(pct),
-    } as Parameters<typeof transact>[1],
-  );
+      {
+        connection,
+        programId,
+        relayUrl,
+        depositorPublicKey: walletPublicKey,
+        walletPublicKey,
+        signTransaction,
+        signMessage,
+        enforceViewingKeyRegistration: false,
+        cachedMerkleTree: cachedTree,
+        ...(encryptedNotes ? { encryptedNotes } : {}),
+        onProgress: (status) => {
+          if (phase === "building-proof" && /submit|send|broadcast/i.test(status)) {
+            phase = "submitting";
+            onPhase?.("submitting");
+          } else if (phase === "submitting" && /confirm/i.test(status)) {
+            phase = "confirming";
+            onPhase?.("confirming");
+          }
+          onProgress?.(status);
+        },
+        onProofProgress: (pct) => onProofProgress?.(pct),
+      } as Parameters<typeof transact>[1],
+    );
+  } catch (err) {
+    if (isStaleNoteError(err)) clearMerkleTreeCache(cluster, programId);
+    throw err;
+  }
+  saveMerkleTreeCache(cluster, programId, result.merkleTree);
 
   const added = utxosToStored(
     result.outputUtxos,
@@ -262,25 +277,36 @@ export async function shieldWithdrawTo(
       ];
     }
 
-    const mergeResult = await transact(
-      {
-        inputUtxos: [inA, inB],
-        outputUtxos: [mergedOutput, zeroOutput],
-        externalAmount: 0n,
-      },
-      {
-        connection,
-        programId,
-        relayUrl,
-        walletPublicKey,
-        signTransaction,
-        signMessage,
-        enforceViewingKeyRegistration: false,
-        ...(mergeEncryptedNotes ? { encryptedNotes: mergeEncryptedNotes } : {}),
-        onProgress: (status: string) => onProgress?.(status),
-        onProofProgress: (pct: number) => onProofProgress?.(pct),
-      } as Parameters<typeof transact>[1],
-    );
+    const cachedMergeTree = await loadMerkleTreeCache(cluster, programId);
+    let mergeResult;
+    try {
+      mergeResult = await transact(
+        {
+          inputUtxos: [inA, inB],
+          outputUtxos: [mergedOutput, zeroOutput],
+          externalAmount: 0n,
+        },
+        {
+          connection,
+          programId,
+          relayUrl,
+          walletPublicKey,
+          signTransaction,
+          signMessage,
+          enforceViewingKeyRegistration: false,
+          cachedMerkleTree: cachedMergeTree,
+          ...(mergeEncryptedNotes
+            ? { encryptedNotes: mergeEncryptedNotes }
+            : {}),
+          onProgress: (status: string) => onProgress?.(status),
+          onProofProgress: (pct: number) => onProofProgress?.(pct),
+        } as Parameters<typeof transact>[1],
+      );
+    } catch (err) {
+      if (isStaleNoteError(err)) clearMerkleTreeCache(cluster, programId);
+      throw err;
+    }
+    saveMerkleTreeCache(cluster, programId, mergeResult.merkleTree);
     consolidationSigs.push(mergeResult.signature);
 
     // Reflect the merge in local UTXO state so a mid-flow failure leaves
@@ -333,6 +359,7 @@ export async function shieldWithdrawTo(
   onPhase?.("building-proof");
   let phase: ShieldPhase = "building-proof";
 
+  const cachedWithdrawTree = await loadMerkleTreeCache(cluster, programId);
   const sdkOptions = {
     connection,
     programId,
@@ -341,6 +368,7 @@ export async function shieldWithdrawTo(
     signTransaction,
     signMessage,
     enforceViewingKeyRegistration: false,
+    cachedMerkleTree: cachedWithdrawTree,
     onProgress: (status: string) => {
       if (phase === "building-proof" && /submit|send|broadcast/i.test(status)) {
         phase = "submitting";
@@ -354,10 +382,17 @@ export async function shieldWithdrawTo(
     onProofProgress: (pct: number) => onProofProgress?.(pct),
   } as Parameters<typeof partialWithdraw>[3];
 
-  const result =
-    total === amountBaseUnits
-      ? await fullWithdraw(inputs, recipient, sdkOptions)
-      : await partialWithdraw(inputs, recipient, amountBaseUnits, sdkOptions);
+  let result;
+  try {
+    result =
+      total === amountBaseUnits
+        ? await fullWithdraw(inputs, recipient, sdkOptions)
+        : await partialWithdraw(inputs, recipient, amountBaseUnits, sdkOptions);
+  } catch (err) {
+    if (isStaleNoteError(err)) clearMerkleTreeCache(cluster, programId);
+    throw err;
+  }
+  saveMerkleTreeCache(cluster, programId, result.merkleTree);
 
   const spent = markSpent(
     walletKey,
