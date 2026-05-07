@@ -21,6 +21,16 @@ import * as React from "react";
 import { applyBufferPolyfill } from "@/lib/buffer-polyfill";
 import { solanaConfig } from "@/lib/solana/config";
 
+import {
+  buildRunId,
+  clearBatchRun,
+  resetInFlightRows,
+  runIsComplete,
+  saveBatchRun,
+  updateBatchRow,
+  type BatchQueueRow,
+  type BatchRun,
+} from "./batch-queue";
 import { cloakConfig } from "./config";
 import { isStaleNoteError, isSubmittingStatus } from "./fast-send-core";
 import {
@@ -122,6 +132,16 @@ export function useBatchPayroll() {
   const wallet = useWallet();
   const [state, setState] = React.useState<BatchPayrollState>(initialState);
   const cancelRef = React.useRef(false);
+
+  // A page reload during a run leaves rows stuck in "in-flight" state in
+  // the persisted queue, since the partialWithdraw promise died with the
+  // page. Sweep them back to "pending" on mount so the retry UI (commit 3)
+  // doesn't claim work is happening when it isn't.
+  const walletKey = wallet.publicKey?.toBase58() ?? null;
+  React.useEffect(() => {
+    if (!walletKey) return;
+    resetInFlightRows(walletKey, solanaConfig.cluster);
+  }, [walletKey]);
 
   const reset = React.useCallback(() => {
     cancelRef.current = false;
@@ -282,6 +302,32 @@ export function useBatchPayroll() {
       };
       saveOrphan(senderBase58, solanaConfig.cluster, orphanRecord);
 
+      const runId = buildRunId(
+        senderBase58,
+        solanaConfig.cluster,
+        depositResult.signature,
+      );
+      const batchRun: BatchRun = {
+        id: runId,
+        cluster: solanaConfig.cluster,
+        sender: senderBase58,
+        tokenId,
+        decimals,
+        mint: mint.toBase58(),
+        totalRaw: total.toString(),
+        depositSignature: depositResult.signature,
+        createdAt: orphanRecord.createdAt,
+        updatedAt: orphanRecord.createdAt,
+        rows: rows.map<BatchQueueRow>((r) => ({
+          rowId: r.id,
+          recipient: r.recipient,
+          amountRaw: r.amountBaseUnits.toString(),
+          state: "pending",
+          attempts: 0,
+        })),
+      };
+      saveBatchRun(senderBase58, solanaConfig.cluster, batchRun);
+
       setState((s) => ({
         ...s,
         phase: "paying",
@@ -332,6 +378,18 @@ export function useBatchPayroll() {
             utxo: serializeUtxo(currentUtxo, ephemeralKeypair),
             rowsRemaining: rows.length - i - 1,
           });
+          updateBatchRow(
+            senderBase58,
+            solanaConfig.cluster,
+            runId,
+            row.id,
+            {
+              state: "confirmed",
+              payoutSignature: rowOutcome.signature,
+              confirmedAt: Date.now(),
+              errorMessage: undefined,
+            },
+          );
           setState((s) => ({
             ...s,
             rows: {
@@ -346,6 +404,16 @@ export function useBatchPayroll() {
           }));
         } else {
           results.push({ id: row.id, ok: false, error: rowOutcome.error });
+          updateBatchRow(
+            senderBase58,
+            solanaConfig.cluster,
+            runId,
+            row.id,
+            {
+              state: "failed",
+              errorMessage: rowOutcome.error.message,
+            },
+          );
           setState((s) => ({
             ...s,
             rows: {
@@ -371,6 +439,32 @@ export function useBatchPayroll() {
         clearOrphan(senderBase58, solanaConfig.cluster, orphanId);
       }
 
+      // Drop the queue entry once nothing is left to retry. A cancelled
+      // mid-run still leaves "pending" rows behind, so the queue persists
+      // until the user either retries or explicitly clears.
+      const finalRun = {
+        ...batchRun,
+        rows: batchRun.rows.map((qr) => {
+          const result = results.find((r) => r.id === qr.rowId);
+          if (!result) return qr;
+          if (result.ok) {
+            return {
+              ...qr,
+              state: "confirmed" as const,
+              payoutSignature: result.payoutSig,
+            };
+          }
+          return {
+            ...qr,
+            state: "failed" as const,
+            errorMessage: result.error.message,
+          };
+        }),
+      };
+      if (runIsComplete(finalRun)) {
+        clearBatchRun(senderBase58, solanaConfig.cluster, runId);
+      }
+
       setState((s) => ({
         ...s,
         status: "done",
@@ -392,6 +486,7 @@ export function useBatchPayroll() {
         failed,
         total: rows.length,
         depositSignature: depositResult.signature,
+        runId,
         results,
       };
 
@@ -404,6 +499,12 @@ export function useBatchPayroll() {
         | { ok: true; changeUtxo: Utxo; tree: MerkleTree | undefined; signature: string }
         | { ok: false; error: Error }
       > {
+        updateBatchRow(senderBase58, solanaConfig.cluster, runId, args.row.id, {
+          state: "in-flight",
+          attempts: args.attempt + 1,
+          lastAttemptAt: Date.now(),
+          errorMessage: undefined,
+        });
         setState((s) => ({
           ...s,
           activeRowId: args.row.id,
