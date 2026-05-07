@@ -71,6 +71,8 @@ Fees are enforced by the on-chain program, not by Nori. Each transfer costs a fi
 
 Nori is built on [Cloak](https://docs.cloak.ag), a UTXO-based shielded pool on Solana with Groth16 ZK proofs and a 32-deep Merkle tree of commitments.
 
+To ship your own private payments app on the same SDK, see [docs/INTEGRATION.md](docs/INTEGRATION.md). It covers install, the Buffer polyfill workaround for Next 16 + Turbopack, the fast-send pattern, and the per-cluster constants Nori uses in production.
+
 ## Stack
 
 - [Next.js 16](https://nextjs.org) (App Router) and React 19
