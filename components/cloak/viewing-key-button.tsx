@@ -20,17 +20,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { useViewingKey } from "@/lib/cloak/use-viewing-key";
+import { buildAuditorUrl } from "@/lib/cloak/viewing-keys";
 import { cn } from "@/lib/utils";
 
 const COPIED_FEEDBACK_MS = 1600;
-
-function buildAuditorUrl(nkHex: string, walletPubkey: string | null): string {
-  const params = new URLSearchParams({ nk: nkHex });
-  if (walletPubkey) params.set("wallet", walletPubkey);
-  const path = `/compliance/view?${params.toString()}`;
-  if (typeof window === "undefined") return path;
-  return `${window.location.origin}${path}`;
-}
 
 export function ViewingKeyButton() {
   const wallet = useWallet();
@@ -62,10 +55,10 @@ export function ViewingKeyButton() {
 
   const onCopyAuditorLink = React.useCallback(() => {
     if (state.status !== "ready") return;
-    const url = buildAuditorUrl(
-      state.material.nkHex,
-      wallet.publicKey?.toBase58() ?? null,
-    );
+    const url = buildAuditorUrl({
+      nkHex: state.material.nkHex,
+      wallet: wallet.publicKey?.toBase58() ?? null,
+    });
     void writeToClipboard(url);
   }, [state, wallet.publicKey, writeToClipboard]);
 

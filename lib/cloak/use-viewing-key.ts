@@ -37,13 +37,13 @@ export function useViewingKey() {
     setState({ status: "idle" });
   }
 
-  const reveal = React.useCallback(async () => {
+  const reveal = React.useCallback(async (): Promise<ViewingKeyMaterial | null> => {
     if (!wallet.publicKey || !wallet.signMessage) {
       setState({
         status: "error",
         error: "Connect a wallet that supports message signing.",
       });
-      return;
+      return null;
     }
 
     const pk = wallet.publicKey.toBase58();
@@ -57,11 +57,13 @@ export function useViewingKey() {
     try {
       const material = await getViewingKey(pk, memoized);
       setState({ status: "ready", material });
+      return material;
     } catch (err) {
       setState({
         status: "error",
         error: err instanceof Error ? err.message : String(err),
       });
+      return null;
     }
   }, [wallet]);
 

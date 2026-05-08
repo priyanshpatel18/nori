@@ -4,11 +4,11 @@ import {
   ArrowRight01Icon,
   ArrowUpRight01Icon,
   CheckmarkCircle01Icon,
-  Copy01Icon,
   Delete02Icon,
   Download01Icon,
   EyeIcon,
   KeyIcon,
+  Link01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AnimatePresence, motion } from "motion/react";
@@ -42,8 +42,10 @@ import type { ReceivedTransaction } from "@/lib/cloak/scanned-history";
 import { usePaymentHistory } from "@/lib/cloak/use-payment-history";
 import { useIssuedKeys } from "@/lib/cloak/use-issued-keys";
 import { useScannedHistory } from "@/lib/cloak/use-scanned-history";
+import { useViewingKey } from "@/lib/cloak/use-viewing-key";
 import {
   appendKey,
+  buildAuditorUrl,
   deleteKey,
   formatKeyRange,
   generateKeyId,
@@ -121,9 +123,28 @@ export default function CompliancePage() {
   // Issued viewing keys (live, persisted per wallet/cluster).
   const { keys: issuedKeys, issuer } = useIssuedKeys();
 
+  // Viewing-key derivation is shared between the issue form (to attach a
+  // working auditor link to the success banner) and active-key rows (where
+  // the user copies a link for any previously-issued range). The nk is held
+  // only in this hook's memory, never persisted.
+  const viewingKey = useViewingKey();
+
+  const ensureNkHex = React.useCallback(async (): Promise<string | null> => {
+    if (viewingKey.state.status === "ready") {
+      return viewingKey.state.material.nkHex;
+    }
+    const material = await viewingKey.reveal();
+    return material?.nkHex ?? null;
+  }, [viewingKey]);
+
   const handleIssueKey = React.useCallback(
-    (input: { auditor: string; email: string }): IssuedKey | null => {
+    async (input: {
+      auditor: string;
+      email: string;
+    }): Promise<{ record: IssuedKey; link: string } | null> => {
       if (!issuer) return null;
+      const nkHex = await ensureNkHex();
+      if (!nkHex) return null;
       const record: IssuedKey = {
         id: generateKeyId(),
         cluster: solanaConfig.cluster,
@@ -135,9 +156,29 @@ export default function CompliancePage() {
         createdAt: Date.now(),
       };
       appendKey(issuer, solanaConfig.cluster, record);
-      return record;
+      const link = buildAuditorUrl({
+        nkHex,
+        wallet: issuer,
+        fromDate,
+        toDate,
+      });
+      return { record, link };
     },
-    [issuer, fromDate, toDate],
+    [issuer, fromDate, toDate, ensureNkHex],
+  );
+
+  const buildLinkForRecord = React.useCallback(
+    async (record: IssuedKey): Promise<string | null> => {
+      const nkHex = await ensureNkHex();
+      if (!nkHex) return null;
+      return buildAuditorUrl({
+        nkHex,
+        wallet: record.issuer,
+        fromDate: record.fromDate,
+        toDate: record.toDate,
+      });
+    },
+    [ensureNkHex],
   );
 
   const handleRevokeKey = React.useCallback(
@@ -210,6 +251,7 @@ export default function CompliancePage() {
               dateActive={dateActive}
               walletReady={Boolean(issuer)}
               onIssue={handleIssueKey}
+              isDerivingKey={viewingKey.state.status === "deriving"}
             />
           </div>
 
@@ -220,6 +262,8 @@ export default function CompliancePage() {
                 walletReady={Boolean(issuer)}
                 onRevoke={handleRevokeKey}
                 onDelete={handleDeleteKey}
+                onCopyLink={buildLinkForRecord}
+                isDerivingKey={viewingKey.state.status === "deriving"}
               />
             </div>
             <TransactionsCard
@@ -255,6 +299,7 @@ function IssueViewingKey({
   dateActive,
   walletReady,
   onIssue,
+  isDerivingKey,
 }: {
   fromDate: string;
   toDate: string;
@@ -263,34 +308,62 @@ function IssueViewingKey({
   onClear: () => void;
   dateActive: boolean;
   walletReady: boolean;
-  onIssue: (input: { auditor: string; email: string }) => IssuedKey | null;
+  onIssue: (input: {
+    auditor: string;
+    email: string;
+  }) => Promise<{ record: IssuedKey; link: string } | null>;
+  isDerivingKey: boolean;
 }) {
   const [auditor, setAuditor] = React.useState("");
   const [email, setEmail] = React.useState("");
-  const [justIssued, setJustIssued] = React.useState<IssuedKey | null>(null);
+  const [justIssued, setJustIssued] = React.useState<{
+    record: IssuedKey;
+    link: string;
+  } | null>(null);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [linkCopied, setLinkCopied] = React.useState(false);
 
-  const canSubmit = walletReady && auditor.trim().length > 0;
+  const canSubmit =
+    walletReady && auditor.trim().length > 0 && !submitting && !isDerivingKey;
 
   const handleSubmit = React.useCallback(
-    (e: React.FormEvent<HTMLFormElement>) => {
+    async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       if (!canSubmit) return;
-      const issued = onIssue({ auditor, email });
-      if (!issued) return;
-      setJustIssued(issued);
-      setAuditor("");
-      setEmail("");
+      setSubmitting(true);
+      try {
+        const issued = await onIssue({ auditor, email });
+        if (!issued) return;
+        setJustIssued(issued);
+        setLinkCopied(false);
+        setAuditor("");
+        setEmail("");
+      } finally {
+        setSubmitting(false);
+      }
     },
     [canSubmit, onIssue, auditor, email],
   );
 
-  // Auto-clear the success banner after a few seconds so the form goes back
-  // to a neutral state without a visual remnant.
-  React.useEffect(() => {
-    if (!justIssued) return;
-    const handle = setTimeout(() => setJustIssued(null), 5000);
-    return () => clearTimeout(handle);
+  const handleCopyLink = React.useCallback(() => {
+    if (!justIssued || typeof navigator === "undefined" || !navigator.clipboard)
+      return;
+    navigator.clipboard.writeText(justIssued.link).then(
+      () => setLinkCopied(true),
+      () => {
+        // ignore, clipboard can fail in some browser contexts
+      },
+    );
   }, [justIssued]);
+
+  // The success banner sticks until dismissed or replaced by the next issue,
+  // since the auditor link only appears here (no other surface re-derives the
+  // key without another wallet sign).
+  React.useEffect(() => {
+    if (!linkCopied) return;
+    const t = setTimeout(() => setLinkCopied(false), 1600);
+    return () => clearTimeout(t);
+  }, [linkCopied]);
 
   return (
     <motion.section
@@ -383,26 +456,63 @@ function IssueViewingKey({
           <AnimatePresence mode="popLayout">
             {justIssued ? (
               <motion.div
-                key={justIssued.id}
+                key={justIssued.record.id}
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.22 }}
-                className="flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[12px] text-foreground"
+                className="flex flex-col gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-[12px] text-foreground"
               >
-                <HugeiconsIcon
-                  icon={CheckmarkCircle01Icon}
-                  size={13}
-                  strokeWidth={2}
-                  className="text-emerald-400"
-                />
-                <span className="min-w-0 truncate">
-                  Issued for{" "}
-                  <span className="font-medium">{justIssued.auditor}</span>
-                  <span className="ml-1 font-mono text-[10.5px] text-foreground/55">
-                    {justIssued.id}
+                <div className="flex items-center gap-2">
+                  <HugeiconsIcon
+                    icon={CheckmarkCircle01Icon}
+                    size={13}
+                    strokeWidth={2}
+                    className="text-emerald-400"
+                  />
+                  <span className="min-w-0 truncate">
+                    Issued for{" "}
+                    <span className="font-medium">
+                      {justIssued.record.auditor}
+                    </span>
+                    <span className="ml-1 font-mono text-[10.5px] text-foreground/55">
+                      {justIssued.record.id}
+                    </span>
                   </span>
-                </span>
+                </div>
+                <div className="flex items-center gap-1.5 rounded-md border border-border bg-background/60 pl-2.5">
+                  <span
+                    className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground/80"
+                    title={justIssued.link}
+                  >
+                    {justIssued.link}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    aria-label={
+                      linkCopied ? "Auditor link copied" : "Copy auditor link"
+                    }
+                    className={cn(
+                      "flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors",
+                      linkCopied
+                        ? "text-primary"
+                        : "text-foreground/65 hover:bg-secondary/60 hover:text-foreground",
+                    )}
+                  >
+                    <HugeiconsIcon
+                      icon={linkCopied ? CheckmarkCircle01Icon : Link01Icon}
+                      size={12}
+                      strokeWidth={2}
+                    />
+                    {linkCopied ? "Copied" : "Copy link"}
+                  </button>
+                </div>
+                <p className="text-[10.5px] text-foreground/55">
+                  Send this link to {justIssued.record.auditor}. It opens a
+                  read-only view of the selected range. Treat it like a
+                  password.
+                </p>
               </motion.div>
             ) : null}
           </AnimatePresence>
@@ -413,13 +523,18 @@ function IssueViewingKey({
             size="lg"
             className="self-start"
             disabled={!canSubmit}
+            aria-busy={submitting || isDerivingKey || undefined}
             title={
               walletReady
                 ? undefined
                 : "Connect a wallet first to bind the key to your account."
             }
           >
-            Generate viewing key
+            {isDerivingKey
+              ? "Signing…"
+              : submitting
+                ? "Generating…"
+                : "Generate viewing key"}
             <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2.2} />
           </FancyButton>
         </div>
@@ -433,11 +548,15 @@ function ActiveKeysCard({
   walletReady,
   onRevoke,
   onDelete,
+  onCopyLink,
+  isDerivingKey,
 }: {
   keys: IssuedKey[];
   walletReady: boolean;
   onRevoke: (id: string) => void;
   onDelete: (id: string) => void;
+  onCopyLink: (record: IssuedKey) => Promise<string | null>;
+  isDerivingKey: boolean;
 }) {
   const activeCount = keys.filter((k) => keyStatus(k) === "active").length;
 
@@ -472,6 +591,8 @@ function ActiveKeysCard({
                 k={k}
                 onRevoke={onRevoke}
                 onDelete={onDelete}
+                onCopyLink={onCopyLink}
+                isDerivingKey={isDerivingKey}
               />
             ))}
           </AnimatePresence>
@@ -485,29 +606,41 @@ function ActiveKeyRow({
   k,
   onRevoke,
   onDelete,
+  onCopyLink,
+  isDerivingKey,
 }: {
   k: IssuedKey;
   onRevoke: (id: string) => void;
   onDelete: (id: string) => void;
+  onCopyLink: (record: IssuedKey) => Promise<string | null>;
+  isDerivingKey: boolean;
 }) {
   const status = keyStatus(k);
   const [copied, setCopied] = React.useState(false);
+  const [copying, setCopying] = React.useState(false);
 
-  const handleCopy = React.useCallback(() => {
+  const handleCopy = React.useCallback(async () => {
     if (typeof navigator === "undefined" || !navigator.clipboard) return;
-    navigator.clipboard.writeText(k.id).then(
-      () => setCopied(true),
-      () => {
-        // ignore, clipboard can fail in some browser contexts
-      },
-    );
-  }, [k.id]);
+    setCopying(true);
+    try {
+      const link = await onCopyLink(k);
+      if (!link) return;
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+    } catch {
+      // ignore, clipboard or sign rejection
+    } finally {
+      setCopying(false);
+    }
+  }, [k, onCopyLink]);
 
   React.useEffect(() => {
     if (!copied) return;
     const t = setTimeout(() => setCopied(false), 1200);
     return () => clearTimeout(t);
   }, [copied]);
+
+  const busy = copying || isDerivingKey;
 
   return (
     <motion.li
@@ -548,12 +681,31 @@ function ActiveKeyRow({
         <button
           type="button"
           onClick={handleCopy}
-          aria-label={copied ? "Key id copied" : "Copy key id"}
-          title={copied ? "Copied" : "Copy id"}
-          className="text-foreground/55 transition-colors hover:text-foreground"
+          disabled={status !== "active" || busy}
+          aria-label={
+            copied
+              ? "Auditor link copied"
+              : status === "active"
+                ? "Copy auditor link"
+                : "Auditor link unavailable for revoked keys"
+          }
+          title={
+            status !== "active"
+              ? "Revoked"
+              : copied
+                ? "Copied"
+                : busy
+                  ? "Signing…"
+                  : "Copy auditor link"
+          }
+          className={cn(
+            "text-foreground/55 transition-colors hover:text-foreground",
+            (status !== "active" || busy) &&
+              "cursor-not-allowed opacity-60 hover:text-foreground/55",
+          )}
         >
           <HugeiconsIcon
-            icon={copied ? CheckmarkCircle01Icon : Copy01Icon}
+            icon={copied ? CheckmarkCircle01Icon : Link01Icon}
             size={12}
             strokeWidth={1.8}
             className={cn(copied && "text-primary")}

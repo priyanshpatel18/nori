@@ -149,6 +149,27 @@ export function formatKeyRange(k: IssuedKey): string {
   return "All time";
 }
 
+/**
+ * Build the URL an auditor opens to reconstruct the issuer's ledger.
+ * `nkHex` is the wire-format viewing key, treat like a password. Date params
+ * are passed through as YYYY-MM-DD strings, the auditor view interprets empty
+ * sides as open-ended.
+ */
+export function buildAuditorUrl(opts: {
+  nkHex: string;
+  wallet: string | null;
+  fromDate?: string;
+  toDate?: string;
+}): string {
+  const params = new URLSearchParams({ nk: opts.nkHex });
+  if (opts.wallet) params.set("wallet", opts.wallet);
+  if (opts.fromDate) params.set("from", opts.fromDate);
+  if (opts.toDate) params.set("to", opts.toDate);
+  const path = `/compliance/view?${params.toString()}`;
+  if (typeof window === "undefined") return path;
+  return `${window.location.origin}${path}`;
+}
+
 function isIssuedKey(value: unknown): value is IssuedKey {
   if (!value || typeof value !== "object") return false;
   const r = value as Record<string, unknown>;
