@@ -6,14 +6,14 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const SNIPPET = `import { transact, createUtxo, NATIVE_SOL_MINT } from "@cloak.dev/sdk";
+const SNIPPET = `import { transact, createUtxo } from "@cloak.dev/sdk";
 
 await transact(
   {
-    inputUtxos:    [/* your shielded UTXOs */],
-    outputUtxos:   [await createUtxo(amount, recipient, mint)],
+    inputUtxos: [/* your shielded UTXOs */],
+    outputUtxos: [await createUtxo(amount, owner, mint)],
     externalAmount: amount,
-    depositor:      wallet.publicKey,
+    depositor: wallet.publicKey,
   },
   { connection, wallet, relayUrl, programId },
 );`;

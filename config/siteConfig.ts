@@ -1,17 +1,12 @@
 import { Metadata } from "next";
 
-const { title, titleLong, description, ogImage, baseURL, socials } = {
+const { title, titleLong, description, ogImage, baseURL } = {
   title: "Nori",
   titleLong: "Nori | Private payroll on Solana",
   description:
     "Private payroll and payments on Solana. Pay contributors in SOL, USDC, and USDT with ZK-shielded transactions and selective compliance disclosure.",
   baseURL: "https://usenori.xyz",
   ogImage: "https://usenori.xyz/open-graph.png",
-  socials: {
-    xHandle: "UseNori",
-    xUrl: "https://x.com/UseNori",
-    githubOrg: "UseNori",
-  },
 };
 
 export const siteConfig: Metadata = {
@@ -34,8 +29,6 @@ export const siteConfig: Metadata = {
     title: titleLong,
     description,
     images: [ogImage],
-    creator: `@${socials.xHandle}`,
-    site: `@${socials.xHandle}`,
   },
   icons: {
     icon: "/favicon.ico",
@@ -46,7 +39,6 @@ export const siteConfig: Metadata = {
   },
   keywords: [
     "Nori",
-    "UseNori",
     "Solana",
     "private payroll",
     "crypto payroll",

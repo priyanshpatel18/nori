@@ -25,8 +25,6 @@ const NAV: { heading: string; items: { label: string; href: string }[] }[] = [
     items: [
       { label: "Cloak SDK", href: "https://docs.cloak.ag" },
       { label: "Protocol", href: "https://docs.cloak.ag/protocol" },
-      { label: "Relay API", href: "https://docs.cloak.ag/services" },
-      { label: "Status", href: "https://status.cloak.ag" },
     ],
   },
   {
@@ -106,7 +104,7 @@ export function SiteFooter() {
                     <li key={it.label}>
                       <Link
                         href={it.href}
-                        className="text-[14px] text-foreground/80 transition-colors hover:text-primary"
+                        className="link-underline text-[14px] text-foreground/80 transition-colors hover:text-primary"
                       >
                         {it.label}
                       </Link>
@@ -124,20 +122,14 @@ export function SiteFooter() {
           </p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-muted-foreground">
             <Link
-              href="https://x.com/UseNori"
-              className="transition-colors hover:text-primary"
-            >
-              X
-            </Link>
-            <Link
-              href="https://github.com/UseNori"
-              className="transition-colors hover:text-primary"
+              href="https://github.com/priyanshpatel18/nori"
+              className="link-underline transition-colors hover:text-primary"
             >
               GitHub
             </Link>
             <Link
               href="https://docs.cloak.ag"
-              className="transition-colors hover:text-primary"
+              className="link-underline transition-colors hover:text-primary"
             >
               Docs
             </Link>
