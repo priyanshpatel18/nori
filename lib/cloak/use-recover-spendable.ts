@@ -122,7 +122,7 @@ export function useRecoverSpendable(): UseRecoverSpendable {
 
         const { spendKey } = await deriveSpendKey(senderBase58, memoized);
         // expandSpendKey is unused here but pulled in to keep this hook
-        // co-located with other key-derivation surfaces — the recoverable-
+        // co-located with other key-derivation surfaces, the recoverable-
         // notes flow uses the view key, not the expanded spend key.
         void expandSpendKey;
         const viewKey = deriveViewKey(spendKey.sk_spend);

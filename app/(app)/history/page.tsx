@@ -108,7 +108,7 @@ export default function HistoryPage() {
   }, [filter, query, fromDate, toDate]);
 
   // Parse the date inputs once per render. `toDate` is treated as
-  // inclusive — add 24h so the end-of-day boundary works as users expect.
+  // inclusive, add 24h so the end-of-day boundary works as users expect.
   const fromMs = React.useMemo(() => {
     if (!fromDate) return Number.NEGATIVE_INFINITY;
     const t = Date.parse(fromDate);
@@ -378,7 +378,7 @@ function Pagination({
     <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
       <p className="text-[11.5px] text-foreground/55">
         <span className="font-mono text-foreground/85">
-          {pageStart + 1}–{pageEnd}
+          {pageStart + 1}-{pageEnd}
         </span>{" "}
         of <span className="font-mono text-foreground/85">{total}</span>
       </p>
@@ -585,7 +585,7 @@ function ScanStatusBar({
   if (!scan) return null;
   const cursor = scan.report.lastSignature
     ? `${scan.report.lastSignature.slice(0, 4)}…${scan.report.lastSignature.slice(-4)}`
-    : "—";
+    : "-";
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-foreground/55">
       <span>Synced {formatRelative(scan.scannedAt)}</span>
@@ -661,7 +661,7 @@ function summarizeByToken(
     if (!r.mint) continue;
     const e = upsert(r.mint, r.token, r.decimals);
     try {
-      // amountRaw is gross — what actually left the wallet — so use it
+      // amountRaw is gross, what actually left the wallet, so use it
       // (not netRaw) for the user's running outflow. The fee is the
       // difference between the two.
       e.outflow += BigInt(r.amountRaw);
@@ -872,7 +872,7 @@ function groupOutgoing(records: PaymentRecord[]): Group[] {
   // payroll batch (one batch deposit, N recipients sharing it). Sig that
   // appears once is a single /pay row. This works for both old records
   // (no batchId field) and new records (where batchId === depositSignature).
-  // Swaps are always single rows — never grouped, even if they coincidentally
+  // Swaps are always single rows, never grouped, even if they coincidentally
   // share a deposit signature.
   const swaps: PaymentRecord[] = [];
   const grouped: PaymentRecord[] = [];
@@ -1197,7 +1197,7 @@ function BatchRow({
           type="button"
           variant="ghost"
           onClick={() => setOpen(true)}
-          // The whole row is the click target — override variant defaults
+          // The whole row is the click target, override variant defaults
           // (h-9, rounded-4xl, centered, no border) so it fills the card.
           className="group flex h-auto w-full items-center justify-start gap-3 rounded-none px-3 py-3 text-left hover:bg-transparent sm:gap-4 sm:px-4 sm:py-3.5"
         >

@@ -123,8 +123,8 @@ export default function SettingsPage() {
                   )}
                 </div>
                 <p className="mt-2 max-w-prose text-[13px] leading-6 text-muted-foreground">
-                  Run Cloak against Solana devnet with a built-in faucet for
-                  test funds. Nothing real is at stake.
+                  Run Nori on Solana devnet with a built-in faucet for test
+                  funds. Nothing real is at stake.
                 </p>
               </div>
               <span data-tour="demo-toggle" className="rounded-full">

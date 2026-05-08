@@ -9,7 +9,7 @@ test keypair and small amounts.
 
 ## Setup
 
-1. Have a Solana keypair JSON file (Solana CLI format — a 64-byte JSON array).
+1. Have a Solana keypair JSON file (Solana CLI format, a 64-byte JSON array).
    Quickest way:
 
    ```sh
@@ -94,16 +94,16 @@ CSV=./scripts/test/sample-roster.csv \
 Before pushing changes that touch the SDK integration to prod:
 
 ```sh
-# 1. Devnet SOL — proves the fast-send wiring works.
+# 1. Devnet SOL, proves the fast-send wiring works.
 KEYPAIR=~/.config/solana/test.json TOKEN=SOL AMOUNT=0.05 RECIPIENT=… pnpm test:pay
 
-# 2. Devnet mock USDC — proves the SPL path works.
+# 2. Devnet mock USDC, proves the SPL path works.
 KEYPAIR=~/.config/solana/test.json TOKEN=USDC AMOUNT=1 RECIPIENT=… pnpm test:pay
 
-# 3. Devnet batch — proves the loop + per-row state.
+# 3. Devnet batch, proves the loop + per-row state.
 KEYPAIR=~/.config/solana/test.json TOKEN=USDC CSV=./scripts/test/sample-roster.csv pnpm test:payroll
 
-# 4. Mainnet smoke — only when devnet is clean.
+# 4. Mainnet smoke, only when devnet is clean.
 RPC_URL=… KEYPAIR=…/mainnet.json CLUSTER=mainnet-beta TOKEN=SOL AMOUNT=0.01 RECIPIENT=… pnpm test:pay
 ```
 

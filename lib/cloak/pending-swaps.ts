@@ -12,7 +12,7 @@ const MAX_ENTRIES = 50;
 //  - refunded    : settlement failed and the auto-refund (fullWithdraw) ran ok.
 //  - needs-recovery : settlement failed AND the refund failed too. The
 //    deposit is still in the shielded pool, owned by a UTXO keypair that
-//    is deterministically re-derivable from the wallet sig — recovery
+//    is deterministically re-derivable from the wallet sig, recovery
 //    is a manual fullWithdraw using the persisted note metadata.
 export type PendingSwapStatus =
   | "pending"

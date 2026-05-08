@@ -72,7 +72,7 @@ export function formatCloakError(err: unknown): UiError {
 
   if (err instanceof RootNotFoundError || isRootNotFoundError(err)) {
     return {
-      title: "Pool advanced — proof out of date",
+      title: "Pool advanced, proof out of date",
       message:
         "More deposits landed while we were preparing your proof, so its Merkle root is no longer in history.",
       suggestion: "Try again. We'll regenerate the proof against the fresh root.",
@@ -113,7 +113,7 @@ export function formatCloakError(err: unknown): UiError {
     return {
       title: "Local notes are stale",
       message:
-        "This device's view of the pool is behind the chain — your saved notes don't match the relay's tree.",
+        "This device's view of the pool is behind the chain, your saved notes don't match the relay's tree.",
       suggestion: "Sync from chain and try again.",
       retryable: true,
     };
@@ -208,7 +208,7 @@ function mapCloakCategory(err: CloakError): UiError {
         message:
           err.message ||
           "The SDK is missing a required configuration value.",
-        suggestion: "Reach out to support — this is likely a config issue.",
+        suggestion: "Reach out to support, this is likely a config issue.",
         retryable: false,
       };
     default:

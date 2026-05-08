@@ -156,7 +156,7 @@ export function useOnChainBalance(): UseOnChainBalance {
         const nk = expanded.nsk;
 
         // Viewing-key-only mode (no walletPublicKey) so it discovers chain
-        // notes addressed to nk regardless of who signed the tx — this is
+        // notes addressed to nk regardless of who signed the tx, this is
         // the only way to surface shields done from a different origin.
         const result = await scanTransactions({
           connection: scanConnection,

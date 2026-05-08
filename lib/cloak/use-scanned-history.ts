@@ -24,7 +24,7 @@ export type UseScannedHistory = {
   status: ScanStatus;
   progress: string | null;
   error: Error | null;
-  /** Run (or re-run) a scan. Pure read — no wallet popup. */
+  /** Run (or re-run) a scan. Pure read, no wallet popup. */
   sync: () => Promise<StoredScan>;
   /** Drop the persisted cache and re-scan from chain head. */
   reset: () => Promise<StoredScan | null>;
@@ -153,7 +153,7 @@ export function useScannedHistory(): UseScannedHistory {
   // Auto-sync was previously fired on every (wallet, mount). It made the
   // /api/scan-received endpoint hammer the upstream RPC and turn into a
   // 429 retry loop on Helius free-tier. The scan is now strictly opt-in
-  // via the "Sync received" button — manual control + small bounded
+  // via the "Sync received" button, manual control + small bounded
   // fetches is the cheaper, calmer baseline.
 
   const reset = React.useCallback(async () => {

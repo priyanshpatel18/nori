@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 // caching since the response is wallet-specific and time-sensitive.
 export const dynamic = "force-dynamic";
 
-// Server-side scans use ATA-matching only — there's no per-user secret to
+// Server-side scans use ATA-matching only, there's no per-user secret to
 // pass in, so a zeroed nk is fine. The client never derives or stores a
 // real viewing key for this flow.
 const PLACEHOLDER_NK = new Uint8Array(32);
@@ -18,7 +18,7 @@ const PLACEHOLDER_NK = new Uint8Array(32);
 // Cap each scan to a small window of signatures. With `untilSignature` from
 // the cached cursor, this is more than enough for incremental syncs: the
 // delta is usually a handful of signatures. The first-ever scan pulls the
-// most recent 200 program txs and saves the cursor — older history can be
+// most recent 200 program txs and saves the cursor, older history can be
 // brought in by repeated incremental calls (each advances the cursor by up
 // to LIMIT_DEFAULT). Bumping the cap risks triggering Helius free-tier
 // 429s, which the SDK retries indefinitely and turns into a hot loop.

@@ -59,7 +59,7 @@ export default function CompliancePage() {
   const { records } = usePaymentHistory();
   const { scan, received } = useScannedHistory();
 
-  // YYYY-MM-DD strings — empty = unbounded. Shared between the issue-key
+  // YYYY-MM-DD strings, empty = unbounded. Shared between the issue-key
   // form (where the auditor's window is picked) and the summary preview
   // above (so the user sees exactly what the auditor would see).
   const [fromDate, setFromDate] = React.useState<string>("");
@@ -498,7 +498,7 @@ function ActiveKeyRow({
     navigator.clipboard.writeText(k.id).then(
       () => setCopied(true),
       () => {
-        // ignore — clipboard can fail in some browser contexts
+        // ignore, clipboard can fail in some browser contexts
       },
     );
   }, [k.id]);
@@ -736,7 +736,7 @@ function txTypeLabel(txType: string): string {
 
 function formatTxDate(ms: number): string {
   const d = new Date(ms);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "-";
   return d.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
@@ -837,7 +837,7 @@ function TxDetailBody({ tx }: { tx: ReceivedTransaction }) {
           </a>
         ) : (
           <div className="rounded-md border border-dashed border-border bg-background/40 px-3 py-2.5 text-[12px] text-foreground/55">
-            Signature not recorded — Solscan link unavailable.
+            Signature not recorded, Solscan link unavailable.
           </div>
         )}
 
@@ -859,7 +859,7 @@ function TxDetailBody({ tx }: { tx: ReceivedTransaction }) {
             />
             <RawField
               label="Signature"
-              value={tx.signature ?? "—"}
+              value={tx.signature ?? "-"}
               href={solscanUrl ?? undefined}
               mono
             />
@@ -876,7 +876,7 @@ function TxDetailBody({ tx }: { tx: ReceivedTransaction }) {
             />
             <RawField
               label="Mint"
-              value={tx.mint ?? "—"}
+              value={tx.mint ?? "-"}
               hint={symbol || undefined}
               mono
             />

@@ -48,7 +48,7 @@ export function useDueMembers(): {
     const result: DueGroup[] = [];
     for (const [mint, members] of byMint) {
       const token = getShieldTokenByMint(mint);
-      // Skip groups whose token isn't available on this cluster — the user
+      // Skip groups whose token isn't available on this cluster, the user
       // can't pay them anyway. They stay visible on the team list with the
       // "unavailable" pill.
       if (!token) continue;

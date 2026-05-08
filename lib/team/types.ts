@@ -9,9 +9,9 @@ export type ScheduleCadence =
 
 export type MemberSchedule = {
   cadence: ScheduleCadence;
-  // daily/test: 0 (unused). weekly: 0–6 (0 = Sunday). biweekly: 0–13 (day in
+  // daily/test: 0 (unused). weekly: 0-6 (0 = Sunday). biweekly: 0-13 (day in
   // 14-day cycle anchored to Unix epoch's first Sunday, 1970-01-04). monthly:
-  // 1–31 (day of month; values past the month's last day clamp to the last).
+  // 1-31 (day of month; values past the month's last day clamp to the last).
   dayOfCycle: number;
   // Per-payment amount as a decimal string, validated against the mint's
   // decimals at form time.

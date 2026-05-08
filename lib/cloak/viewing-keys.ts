@@ -6,7 +6,7 @@ const MAX_KEYS = 50;
 export type IssuedKey = {
   /**
    * Stable display id for the issuance record. Today this is an opaque
-   * tracking identifier, not the wire-format viewing key — the spend-key /
+   * tracking identifier, not the wire-format viewing key, the spend-key /
    * sign-in flow that produces real `nk` bytes lives outside this module.
    * Existing IDs round-trip safely once that lands.
    */
@@ -21,7 +21,7 @@ export type IssuedKey = {
   /** Intended hand-off destination. Stored locally only; never sent on-chain. */
   email: string;
   createdAt: number;
-  /** Set when the user revokes. Revocation here is a UI/local-state flag — */
+  /** Set when the user revokes. Revocation here is a UI/local-state flag, */
   /** the actual decryption power is invalidated by deleting the key bytes. */
   revokedAt?: number;
 };

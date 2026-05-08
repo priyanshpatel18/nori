@@ -31,7 +31,7 @@ export type UseWalletBalances = {
  *
  * Returns balances keyed by `ShieldTokenId`, in base units (lamports for SOL,
  * smallest unit for SPL). Missing tokens (or wallets with no ATA yet) report
- * as `0n`, not `undefined` — only an unconnected wallet returns `{}`.
+ * as `0n`, not `undefined`, only an unconnected wallet returns `{}`.
  */
 export function useWalletBalances(): UseWalletBalances {
   const { connection } = useConnection();
@@ -65,7 +65,7 @@ export function useWalletBalances(): UseWalletBalances {
             return;
           }
           // For SPL tokens we use getTokenAccountsByOwner so we don't need
-          // to derive the ATA up front — handles legacy + Token-2022 owners
+          // to derive the ATA up front, handles legacy + Token-2022 owners
           // who may have multiple accounts (we sum them).
           const resp = await connection.getTokenAccountsByOwner(
             owner,

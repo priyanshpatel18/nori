@@ -56,7 +56,7 @@ export const AmountInput = React.forwardRef<HTMLInputElement, AmountInputProps>(
           if (next !== value) onValueChange(next);
         }}
         onPaste={(e) => {
-          // Sanitize on paste too — browsers fire onChange anyway, but doing
+          // Sanitize on paste too, browsers fire onChange anyway, but doing
           // it here prevents the unsanitized value from flashing.
           const text = e.clipboardData.getData("text");
           const sanitized = sanitize(text);

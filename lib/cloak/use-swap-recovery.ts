@@ -158,7 +158,7 @@ export function useSwapRecovery(): UseSwapRecovery {
             error: null,
           });
         } else {
-          // still in flight — leave the record alone.
+          // still in flight, leave the record alone.
           setAction({
             id: record.id,
             kind: "poll",

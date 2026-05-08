@@ -173,7 +173,7 @@ Chain-native scanner. Your viewing key stays on your device. The chain has the d
 
 1. Open `/history` with enough records that the list overflows (run a few `/pay` sends, or sync received).
 2. Scroll the **list**. The header bar, summary tiles, filter tabs, search, date range, and pagination should not move.
-3. Confirm the window itself does not scroll — DevTools Console:
+3. Confirm the window itself does not scroll, DevTools Console:
 
    ```js
    document.documentElement.scrollHeight === document.documentElement.clientHeight

@@ -36,7 +36,7 @@ export type BatchQueueRow = {
 };
 
 export type BatchRun = {
-  /** `${sender}:${cluster}:${depositSignature}` — same shape as orphan-utxo-store ids
+  /** `${sender}:${cluster}:${depositSignature}`, same shape as orphan-utxo-store ids
    *  so retry flows can reconcile change UTXOs with row state by id. */
   id: string;
   cluster: SolanaCluster;

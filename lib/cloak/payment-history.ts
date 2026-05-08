@@ -53,7 +53,7 @@ export function inferPaymentSource(r: PaymentRecord): PaymentSource {
 
 /**
  * Backfill `source` and trim numeric fields on records persisted before the
- * explicit `source` field existed. Idempotent — returns the number of rows
+ * explicit `source` field existed. Idempotent, returns the number of rows
  * touched and only writes (and notifies subscribers) when something changed.
  */
 export function migratePaymentRecords(

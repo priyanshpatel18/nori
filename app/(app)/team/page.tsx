@@ -837,7 +837,7 @@ function ScheduleSection({
                     amount,
                     mint: mintForTokenId(tokenId),
                   })
-                : "Off — pay this person on demand."}
+                : "Off, pay this person on demand."}
             </p>
           </div>
         </div>
@@ -1197,7 +1197,7 @@ function Field({
 function mintForTokenId(id: ShieldTokenId): string {
   const t = getShieldToken(id);
   if (t) return t.mint.toBase58();
-  // Token unsupported on this cluster — return a sentinel that the validator
+  // Token unsupported on this cluster, return a sentinel that the validator
   // will reject so the user sees the "unavailable" error explicitly.
   return "";
 }

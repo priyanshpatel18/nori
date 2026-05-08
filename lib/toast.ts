@@ -10,7 +10,7 @@ export type ToastId = string | number;
  * toast variant so they don't compete visually with the spotlight overlay.
  * Calls still resolve to a sentinel id (so callers that pipe the return
  * value into another toast call don't crash), and toast.dismiss / promise
- * keep working — the ExternalToast UI is just never rendered during the
+ * keep working, the ExternalToast UI is just never rendered during the
  * tour.
  *
  * Implemented as a Proxy over the underlying sonner singleton so every
@@ -35,7 +35,7 @@ export const toast: typeof sonner = new Proxy(sonner, {
   get(target, prop, receiver) {
     const value = Reflect.get(target, prop, receiver);
     if (typeof value !== "function") return value;
-    // `dismiss` should never be silenced — if a toast is somehow on screen
+    // `dismiss` should never be silenced, if a toast is somehow on screen
     // (e.g. fired before the tour started), callers must still be able to
     // close it.
     if (prop === "dismiss") return value.bind(target);
@@ -76,7 +76,7 @@ type PendingArgs = {
 /**
  * Wrap a promise with a single toast that flips loading → success/error.
  * Returns the underlying promise so callers can await it. While a tour is
- * active the promise still runs, but no toast is shown — the spotlight +
+ * active the promise still runs, but no toast is shown, the spotlight +
  * step transitions carry the visual feedback instead.
  */
 export function toastPromise<T>(

@@ -254,7 +254,7 @@ export async function shieldWithdrawTo(
       `Merging ${pool.length} notes (${consolidationSigs.length + 1})`,
     );
 
-    // Merge the two smallest notes — leaves the largest in place so we
+    // Merge the two smallest notes, leaves the largest in place so we
     // converge fastest toward "top 2 covers".
     const a = pool[pool.length - 1];
     const b = pool[pool.length - 2];

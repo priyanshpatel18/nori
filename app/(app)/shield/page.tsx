@@ -509,7 +509,7 @@ export default function ShieldPage() {
                 size="sm"
                 icon={<ShieldIcon size={18} />}
                 title="Connect to view your shielded balance"
-                description="Once connected, your shielded notes are read locally — never the chain."
+                description="Once connected, your shielded notes are read locally, never the chain."
                 action={<ConnectButton />}
               />
             )}

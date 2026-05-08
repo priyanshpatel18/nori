@@ -72,12 +72,12 @@ export function WelcomeDialog() {
             <NoriMark className="size-7" />
           </span>
           <DialogTitle className="font-heading text-[24px] tracking-[-0.02em]">
-            Welcome to Cloak.
+            Welcome to Nori.
           </DialogTitle>
           <DialogDescription className="text-[13.5px] leading-6">
             You&apos;re connected as{" "}
             <span className="font-mono text-foreground/85">{shortPubkey}</span>.
-            Cloak shields balances on Solana, then spends them privately.
+            Nori shields your balance on Solana, then spends it privately.
             Pick a path before your first move.
           </DialogDescription>
         </DialogHeader>

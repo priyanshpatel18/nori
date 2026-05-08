@@ -47,14 +47,14 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
-  /* Brand tokens — black + amber/yellow only */
+  /* Brand tokens, black + amber/yellow only */
   --color-brand: var(--brand);
   --color-brand-soft: var(--brand-soft);
   --color-brand-foreground: var(--brand-foreground);
 }
 
 /*
- * Black + amber-yellow theme. One mode only — there is no light mode.
+ * Black + amber-yellow theme. One mode only, there is no light mode.
  * Both `:root` and `.dark` resolve to the same palette so existing `dark:`
  * variants still match without changing colors.
  */
@@ -208,7 +208,7 @@
     background: transparent;
   }
 
-  /* Solana wallet-adapter-react — styled with the black + amber tokens */
+  /* Solana wallet-adapter-react, styled with the black + amber tokens */
 
   .wallet-adapter-button {
     background-color: transparent;

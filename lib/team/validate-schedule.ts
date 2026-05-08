@@ -63,14 +63,14 @@ export function validateScheduleDraft(
       (draft.intervalSec ?? 0) < TEST_INTERVAL_MIN_SEC ||
       (draft.intervalSec ?? 0) > TEST_INTERVAL_MAX_SEC
     ) {
-      errors.intervalSec = `Interval must be ${TEST_INTERVAL_MIN_SEC}–${TEST_INTERVAL_MAX_SEC}s`;
+      errors.intervalSec = `Interval must be ${TEST_INTERVAL_MIN_SEC}-${TEST_INTERVAL_MAX_SEC}s`;
     }
     if (
       !Number.isInteger(draft.runsRemaining) ||
       (draft.runsRemaining ?? 0) < TEST_RUNS_MIN ||
       (draft.runsRemaining ?? 0) > TEST_RUNS_MAX
     ) {
-      errors.runsRemaining = `Runs must be ${TEST_RUNS_MIN}–${TEST_RUNS_MAX}`;
+      errors.runsRemaining = `Runs must be ${TEST_RUNS_MIN}-${TEST_RUNS_MAX}`;
     }
   }
 

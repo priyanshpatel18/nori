@@ -57,7 +57,7 @@ export default function FaucetPage() {
   const [usdcBusy, setUsdcBusy] = React.useState(false);
   const [solBusy, setSolBusy] = React.useState(false);
   // Persisted in localStorage per cluster, so "already claimed" survives
-  // reloads. The DB ledger remains authoritative — this is purely a UX
+  // reloads. The DB ledger remains authoritative, this is purely a UX
   // shortcut to avoid showing an enabled button that would 409 on click.
   const solAlreadyClaimed = useFaucetSolClaimed(recipient || null);
   const [claims, setClaims] = React.useState<ClaimEntry[]>([]);
@@ -201,7 +201,7 @@ export default function FaucetPage() {
             disabled={!isDevnet}
             logo={<UsdcLogo className="size-7" />}
             title="Mock USDC"
-            subtitle="Cloak's devnet faucet mints 6-decimal mock USDC straight to your USDC ATA."
+            subtitle="Nori's devnet faucet mints 6-decimal mock USDC straight to your USDC ATA."
           >
             {!recipient ? (
               <ConnectPanel />

@@ -3,7 +3,7 @@
 // The walletPublicKey fallback detects withdrawals that landed on the
 // wallet's ATA without needing to decrypt chain notes, so we only need a
 // public key. We pass a deterministic placeholder `nk` so trial-decryption
-// runs (and finds nothing) — incoming withdrawals still surface via the
+// runs (and finds nothing), incoming withdrawals still surface via the
 // ATA-match path.
 //
 // Usage:

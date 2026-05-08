@@ -285,7 +285,7 @@ export async function swapOnce(args: SwapOnceArgs): Promise<SwapOnceResult> {
 
   // Anything after this point that throws strands the deposit on-chain. We
   // wrap so we can attempt an automatic refund (fullWithdraw) before the
-  // error reaches the caller — the user only signed once, but their funds
+  // error reaches the caller, the user only signed once, but their funds
   // are now in the pool, so we owe them at least a best-effort recovery.
   try {
 
@@ -458,7 +458,7 @@ export async function swapOnce(args: SwapOnceArgs): Promise<SwapOnceResult> {
         });
       }
     } else {
-      log.step("no requestId returned — skipping settlement poll");
+      log.step("no requestId returned, skipping settlement poll");
     }
 
     updatePendingSwap(senderBase58, cluster, depositResult.signature, {
@@ -674,7 +674,7 @@ function buildPostDepositMessage(
     case "refunded":
       return `Swap failed (${causeMsg}). Your funds were refunded in tx ${recovery.signature}.`;
     case "refund-failed":
-      return `Swap failed (${causeMsg}) and the automatic refund also failed (${describeError(recovery.error)}). Your deposit is still shielded — contact support with the deposit signature.`;
+      return `Swap failed (${causeMsg}) and the automatic refund also failed (${describeError(recovery.error)}). Your deposit is still shielded, contact support with the deposit signature.`;
     case "skipped":
       return `Swap failed (${causeMsg}). Recovery skipped: ${recovery.reason}.`;
   }

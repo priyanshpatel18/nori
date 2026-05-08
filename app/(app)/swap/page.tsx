@@ -140,7 +140,7 @@ export default function SwapPage() {
   const minOutputDisplay =
     quote && minOutputBaseUnits > 0n
       ? formatBaseUnits(minOutputBaseUnits, quote.outDecimals)
-      : "—";
+      : "-";
 
   const submitting =
     swap.status === "deposit-proof" ||
@@ -283,7 +283,7 @@ export default function SwapPage() {
               <div
                 className="inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-card/60 pl-2 pr-2.5 text-[13px] font-medium text-foreground"
                 aria-label="Sell token (locked to SOL)"
-                title="Cloak swaps are SOL-input only today."
+                title="Swaps are SOL-input only today."
               >
                 <TokenLogo id="SOL" className="size-5" />
                 <span>SOL</span>
@@ -437,7 +437,7 @@ export default function SwapPage() {
             </FancyButton>
             <p className="text-[11.5px] text-muted-foreground">
               {SWAP_DISABLED
-                ? "Quotes still update live. Submission is paused — relay-side settlement is being stabilised. Existing pending swaps can still be re-polled or refunded above."
+                ? "Quotes still update live. Submission is paused, relay-side settlement is being stabilised. Existing pending swaps can still be re-polled or refunded above."
                 : "SOL → any Jupiter-supported token. Cloak deposits SOL into the shielded pool, runs the Jupiter swap inside the program, and sends the output directly to your wallet."}
             </p>
           </div>
@@ -481,26 +481,26 @@ export default function SwapPage() {
                 value={
                   quote
                     ? `1 ${buy} ≈ ${formatNumber(quote.price)} ${sell}`
-                    : "—"
+                    : "-"
                 }
               />
               <Row
                 label="Fee"
-                value={quote ? `${(quote.feeBps / 100).toFixed(2)}%` : "—"}
+                value={quote ? `${(quote.feeBps / 100).toFixed(2)}%` : "-"}
                 hint={quote ? `${quote.feeBps} bps` : undefined}
               />
               <Row
                 label="Price impact"
-                value={quote ? `${quote.priceImpactPct.toFixed(2)}%` : "—"}
+                value={quote ? `${quote.priceImpactPct.toFixed(2)}%` : "-"}
               />
               <Row
                 label="Route"
-                value={quote ? quote.route : "—"}
+                value={quote ? quote.route : "-"}
               />
               <Row
                 label="Min received"
                 value={
-                  quote ? `${minOutputDisplay} ${buy}` : "—"
+                  quote ? `${minOutputDisplay} ${buy}` : "-"
                 }
                 hint={`${(slippageBps / 100).toFixed(2)}% slippage`}
                 emphasis
@@ -675,7 +675,7 @@ function shortMint(mint: string): string {
 }
 
 function formatNumber(n: number) {
-  if (!Number.isFinite(n)) return "—";
+  if (!Number.isFinite(n)) return "-";
   if (n === 0) return "0";
   if (n >= 1) {
     return n.toLocaleString(undefined, {
@@ -1011,7 +1011,7 @@ function SwapSuccessCard({
           hint={
             settled
               ? "Tx2 trade landed and paid your ATA"
-              : "Tx2 pending — relay still settling"
+              : "Tx2 pending, relay still settling"
           }
           signature={settlementSignature}
           pending={!settled}

@@ -93,7 +93,7 @@ export function buildRecoverableNoteB64(args: {
   if (typeof Buffer !== "undefined") {
     return Buffer.from(json, "utf8").toString("base64");
   }
-  // Browser fallback if Buffer polyfill isn't applied — we already polyfill
+  // Browser fallback if Buffer polyfill isn't applied, we already polyfill
   // in shield-core, so this branch is only here for completeness.
   if (typeof btoa === "function") {
     return btoa(unescape(encodeURIComponent(json)));
@@ -119,7 +119,7 @@ export function decryptRecoverableNotes(
 /**
  * Convert a decrypted `NoteData` plus its on-chain Merkle index/sibling into
  * a `StoredUtxo` ready to drop into `appendUtxos`. The caller is responsible
- * for fetching index + sibling — we keep this synchronous and side-effect
+ * for fetching index + sibling, we keep this synchronous and side-effect
  * free so it composes cleanly with whatever indexer the recovery flow uses.
  */
 export function noteDataToStoredUtxo(args: {
