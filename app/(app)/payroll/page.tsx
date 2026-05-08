@@ -32,12 +32,14 @@ import {
   isShieldTokenSupported,
   type ShieldTokenId,
 } from "@/lib/cloak/tokens";
+import { checkPreflightBalance } from "@/lib/cloak/preflight";
 import {
   useBatchPayroll,
   type BatchRowState,
   type BatchRowStatus,
   type BatchRunSummary,
 } from "@/lib/cloak/use-batch-payroll";
+import { useWalletBalances } from "@/lib/cloak/use-wallet-balances";
 import {
   parsePayrollCsv,
   type PayrollParseResult,
@@ -51,6 +53,7 @@ import {
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanTxUrl } from "@/lib/solana/explorer";
 import { useDueMembers } from "@/lib/team/use-due-members";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 type ParseState =
@@ -250,6 +253,7 @@ function ParsedSummary({
   const tokenSupported = isShieldTokenSupported(tokenId);
   const wallet = useWallet();
   const batch = useBatchPayroll();
+  const walletBalances = useWalletBalances();
 
   const validated: ValidatedRow[] = React.useMemo(() => {
     if (state.kind !== "ready" || !shieldToken) return [];
@@ -285,6 +289,19 @@ function ParsedSummary({
     if (!shieldToken || !wallet.publicKey) return;
     const validRows = validated.filter((r) => r.isValid);
     const validById = new Map(validRows.map((r) => [r.row.rowNumber, r]));
+
+    const preflight = checkPreflightBalance({
+      amountBaseUnits: totals.totalBaseUnits,
+      decimals: shieldToken.decimals,
+      symbol: tokenId,
+      tokenId,
+      operations: validRows.length,
+      walletBalances: walletBalances.balances,
+    });
+    if (!preflight.ok) {
+      toast.error(preflight.reason, { description: preflight.description });
+      return;
+    }
 
     const outcome = await batch.run({
       rows: validRows.map((r) => ({
@@ -324,7 +341,7 @@ function ParsedSummary({
         source: "payroll",
       });
     }
-  }, [batch, shieldToken, tokenId, validated, wallet.publicKey]);
+  }, [batch, shieldToken, tokenId, validated, wallet.publicKey, totals, walletBalances]);
 
   const onRetryFailed = React.useCallback(async () => {
     const runId = batch.summary?.runId;

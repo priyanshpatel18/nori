@@ -65,11 +65,12 @@ export const DEVNET_TOUR: TourStep[] = [
     satisfied: (ctx) => ctx.cluster === "devnet",
   },
   {
-    id: "settings-faucet",
+    id: "settings-portfolio",
     route: "/settings",
-    target: "faucet-link",
-    title: "Open the faucet.",
-    body: "We'll line up some test SOL for fees and mock USDC to spend. Click the Faucet card to head over.",
+    target: "portfolio-card",
+    title: "Check your wallet balances.",
+    body: "Your portfolio shows what you can spend on this cluster. We'll top up devnet SOL and mock USDC next, click Continue and we'll open the faucet.",
+    actionLabel: "Continue to faucet",
   },
   {
     id: "faucet-sol",

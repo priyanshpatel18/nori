@@ -23,12 +23,15 @@ import {
   appendPayment,
   formatBaseUnits,
 } from "@/lib/cloak/payment-history";
+import { checkPreflightBalance } from "@/lib/cloak/preflight";
 import { toBaseUnits } from "@/lib/cloak/tokens";
 import { useBatchPayroll } from "@/lib/cloak/use-batch-payroll";
+import { useWalletBalances } from "@/lib/cloak/use-wallet-balances";
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanTxUrl } from "@/lib/solana/explorer";
 import { markMemberPaid } from "@/lib/team/storage";
 import type { DueGroup } from "@/lib/team/use-due-members";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 const VARIABLE_FEE_BPS = 30n;
@@ -76,6 +79,7 @@ function DueRunBody({
 }) {
   const wallet = useWallet();
   const batch = useBatchPayroll();
+  const walletBalances = useWalletBalances();
 
   // Snapshot the groups at open time. Once a payment succeeds, markMemberPaid
   // updates lastPaidAt and the upstream `groups` prop drops that member from
@@ -116,6 +120,24 @@ function DueRunBody({
       });
 
     const idToRow = new Map(rows.map((r) => [r.rowId, r]));
+
+    const totalAmount = rows.reduce(
+      (acc, r) => acc + r.amountBaseUnits,
+      0n,
+    );
+    const preflight = checkPreflightBalance({
+      amountBaseUnits: totalAmount,
+      decimals: group.token.decimals,
+      symbol: group.token.id,
+      tokenId: group.token.id,
+      operations: rows.length,
+      walletBalances: walletBalances.balances,
+    });
+    if (!preflight.ok) {
+      toast.error(preflight.reason, { description: preflight.description });
+      setActiveMint(null);
+      return;
+    }
 
     const outcome = await batch.run({
       rows: rows.map((r) => ({
@@ -172,7 +194,7 @@ function DueRunBody({
     }));
     setActiveMint(null);
     batch.reset();
-  }, [batch, wallet.publicKey]);
+  }, [batch, wallet.publicKey, walletBalances]);
 
   const runAll = React.useCallback(async () => {
     if (!wallet.publicKey) return;

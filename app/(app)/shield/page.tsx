@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { checkPreflightBalance } from "@/lib/cloak/preflight";
 import {
   getShieldToken,
   listShieldTokens,
@@ -172,6 +173,20 @@ export default function ShieldPage() {
     if (!token || !wallet.publicKey || !amountValid) return;
     if (action === "send" && !recipientValid) return;
     if (overBalance) return;
+
+    if (action === "deposit") {
+      const preflight = checkPreflightBalance({
+        amountBaseUnits,
+        decimals: token.decimals,
+        symbol: token.id,
+        tokenId: token.id,
+        walletBalances: walletBalances.balances,
+      });
+      if (!preflight.ok) {
+        toast.error(preflight.reason, { description: preflight.description });
+        return;
+      }
+    }
 
     const recipientPk =
       action === "deposit"

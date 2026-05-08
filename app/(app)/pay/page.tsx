@@ -42,6 +42,7 @@ import {
   type ShieldTokenId,
 } from "@/lib/cloak/tokens";
 import { appendPayment } from "@/lib/cloak/payment-history";
+import { checkPreflightBalance } from "@/lib/cloak/preflight";
 import { signalTourAction } from "@/lib/cloak/tour";
 import { useFastSend } from "@/lib/cloak/use-fast-send";
 import { solanaConfig } from "@/lib/solana/config";
@@ -204,6 +205,18 @@ export default function PayPage() {
 
   const runSend = React.useCallback(async () => {
     if (!shieldToken || !wallet.connected) return;
+    const amountBaseUnits = toBaseUnits(amount, shieldToken.decimals);
+    const preflight = checkPreflightBalance({
+      amountBaseUnits,
+      decimals: shieldToken.decimals,
+      symbol: token,
+      tokenId: token,
+      walletBalances: walletBalances.balances,
+    });
+    if (!preflight.ok) {
+      toast.error(preflight.reason, { description: preflight.description });
+      return;
+    }
     setLastSend({
       amount: numericAmount,
       net: recipientReceives,
@@ -214,7 +227,6 @@ export default function PayPage() {
       description: `${numericAmount} ${token}`,
     });
     try {
-      const amountBaseUnits = toBaseUnits(amount, shieldToken.decimals);
       const recipientPubkey = new PublicKey(recipient.trim());
       const result = await fastSend.send({
         amountBaseUnits,
@@ -266,6 +278,7 @@ export default function PayPage() {
     numericAmount,
     recipientReceives,
     fastSend,
+    walletBalances,
   ]);
 
   return (

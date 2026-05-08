@@ -1,18 +1,17 @@
 "use client";
 
 import {
-  ArrowUpRight01Icon,
   CheckmarkCircle01Icon,
   Copy01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { motion } from "motion/react";
-import Link from "next/link";
 import * as React from "react";
 
 import { PageHeader } from "@/components/app-shell/page-header";
-import { FaucetIcon, SettingsIcon } from "@/components/Icons";
+import { SettingsIcon } from "@/components/Icons";
+import { SolanaLogo, UsdcLogo, UsdtLogo } from "@/components/logos";
 import { Button } from "@/components/ui/button";
 import {
   disableDemoMode,
@@ -21,7 +20,10 @@ import {
 } from "@/lib/cloak/demo-mode";
 import { cloakConfig } from "@/lib/cloak/config";
 import { resetOnboarding } from "@/lib/cloak/onboarding";
+import { formatBaseUnits } from "@/lib/cloak/payment-history";
+import { listShieldTokens, type ShieldTokenId } from "@/lib/cloak/tokens";
 import { resetTour } from "@/lib/cloak/tour";
+import { useWalletBalances } from "@/lib/cloak/use-wallet-balances";
 import { solanaConfig, type SolanaCluster } from "@/lib/solana/config";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -44,7 +46,8 @@ export default function SettingsPage() {
   const [busy, setBusy] = React.useState<null | "demo-on" | "demo-off">(null);
 
   const cluster = solanaConfig.cluster;
-  const isDevnetActive = cluster === "devnet";
+  const walletBalances = useWalletBalances();
+  const portfolioTokens = React.useMemo(() => listShieldTokens(), []);
 
   function handleToggleDemo(next: boolean) {
     if (next) {
@@ -164,8 +167,48 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Action grid: identifiers on the left, faucet on the right */}
+        {/* Action grid: portfolio on the left, endpoints on the right */}
         <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+          <section
+            data-tour="portfolio-card"
+            className="flex flex-col rounded-2xl border border-border bg-card/40 p-5 sm:p-6"
+          >
+            <header className="flex items-center justify-between gap-3">
+              <h2 className="text-[14px] font-semibold tracking-tight">
+                Portfolio
+              </h2>
+              <span className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground">
+                {pubkey ? CLUSTER_LABEL[cluster] : "Disconnected"}
+              </span>
+            </header>
+            <p className="mt-1 text-[12px] text-muted-foreground">
+              {pubkey
+                ? "Wallet balances on this cluster. Top up before shielding so transaction fees don't fail mid-flow."
+                : "Connect a wallet to see your balances on this cluster."}
+            </p>
+            <ul className="mt-4 flex flex-1 flex-col gap-2.5">
+              {portfolioTokens.length === 0 ? (
+                <li className="rounded-xl border border-dashed border-border bg-background/30 px-3 py-5 text-center text-[12px] text-muted-foreground">
+                  No supported tokens on {CLUSTER_LABEL[cluster]}.
+                </li>
+              ) : (
+                portfolioTokens.map((t) => (
+                  <PortfolioRow
+                    key={t.id}
+                    tokenId={t.id}
+                    decimals={t.decimals}
+                    balance={walletBalances.balances[t.id] ?? null}
+                    status={
+                      pubkey
+                        ? walletBalances.status
+                        : "idle"
+                    }
+                  />
+                ))
+              )}
+            </ul>
+          </section>
+
           <section className="flex flex-col rounded-2xl border border-border bg-card/40 p-5 sm:p-6">
             <header className="flex items-center justify-between gap-3">
               <h2 className="text-[14px] font-semibold tracking-tight">
@@ -190,49 +233,55 @@ export default function SettingsPage() {
               <Field label="Relay" value={cloakConfig.relayUrl} mono copy />
             </dl>
           </section>
-
-          <Link
-            href="/faucet"
-            data-tour="faucet-link"
-            className={cn(
-              "group/faucet flex flex-col rounded-2xl border border-border bg-card/40 p-5 sm:p-6",
-              "transition-colors hover:border-foreground/25 hover:bg-card/60",
-              !isDevnetActive && "pointer-events-none opacity-60",
-            )}
-            aria-disabled={!isDevnetActive}
-          >
-            <header className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <FaucetIcon size={16} className="text-foreground/70" />
-                <h2 className="text-[14px] font-semibold tracking-tight">
-                  Faucet
-                </h2>
-              </div>
-              <HugeiconsIcon
-                icon={ArrowUpRight01Icon}
-                strokeWidth={2}
-                className="size-4 text-muted-foreground transition-transform group-hover/faucet:-translate-y-px group-hover/faucet:translate-x-px"
-              />
-            </header>
-            <p className="mt-3 max-w-prose flex-1 text-[12.5px] leading-5 text-muted-foreground">
-              {isDevnetActive
-                ? "Mint mock USDC straight to your ATA, or open Solana's official faucet for devnet SOL. Devnet only."
-                : `Available on devnet only. Active cluster is ${CLUSTER_LABEL[cluster]}.`}
-            </p>
-            {isDevnetActive && (
-              <div className="mt-auto flex flex-wrap items-center gap-3 pt-4 text-[11.5px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/40 px-2 py-0.5 font-mono text-[11px]">
-                  Mock USDC
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/40 px-2 py-0.5 font-mono text-[11px]">
-                  Devnet SOL
-                </span>
-              </div>
-            )}
-          </Link>
         </div>
       </div>
     </div>
+  );
+}
+
+const TOKEN_LOGO: Record<ShieldTokenId, React.ComponentType<{ className?: string }>> = {
+  SOL: SolanaLogo,
+  USDC: UsdcLogo,
+  USDT: UsdtLogo,
+};
+
+function PortfolioRow({
+  tokenId,
+  decimals,
+  balance,
+  status,
+}: {
+  tokenId: ShieldTokenId;
+  decimals: number;
+  balance: bigint | null;
+  status: "idle" | "loading" | "success" | "error";
+}) {
+  const Logo = TOKEN_LOGO[tokenId];
+  const display =
+    balance === null || balance === undefined
+      ? status === "loading"
+        ? "…"
+        : status === "error"
+          ? "—"
+          : "0"
+      : formatBaseUnits(balance.toString(), decimals);
+  return (
+    <li className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/40 px-3 py-2.5">
+      <div className="flex items-center gap-2.5">
+        <Logo className="size-5" />
+        <span className="font-mono text-[12.5px] uppercase tracking-[0.14em] text-foreground">
+          {tokenId}
+        </span>
+      </div>
+      <span
+        className={cn(
+          "font-mono text-[13px] tabular-nums",
+          balance && balance > 0n ? "text-foreground" : "text-foreground/55",
+        )}
+      >
+        {display}
+      </span>
+    </li>
   );
 }
 
