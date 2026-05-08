@@ -257,6 +257,7 @@ export default function ShieldPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+          data-tour="shield-action"
           className="flex min-w-0 flex-col gap-6 sm:rounded-2xl sm:border sm:border-border sm:bg-card/60 sm:p-8 lg:self-start"
         >
           <div className="flex items-center gap-1 rounded-xl border border-border bg-background/50 p-1">

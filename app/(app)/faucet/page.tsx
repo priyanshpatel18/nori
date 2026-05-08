@@ -16,15 +16,22 @@ import { SolanaLogo, UsdcLogo } from "@/components/logos";
 import { ConnectButton } from "@/components/solana/connect-button";
 import { Button } from "@/components/ui/button";
 import { FancyButton } from "@/components/ui/fancy-button";
+import { markSolClaimed } from "@/lib/cloak/faucet-claimed";
+import { signalTourAction } from "@/lib/cloak/tour";
+import { useFaucetSolClaimed } from "@/lib/cloak/use-faucet-claimed";
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanTxUrl } from "@/lib/solana/explorer";
+import { useSolBalance } from "@/lib/solana/hooks/use-sol-balance";
 import {
   airdropDevnetMockUsdc,
+  claimDevnetSol,
   MOCK_USDC_COOLDOWN_SECONDS,
   MOCK_USDC_MAX_PER_REQUEST,
   MOCK_USDC_MAX_PER_WALLET_24H,
+  SOL_DROP_AMOUNT,
   SOLANA_PUBLIC_FAUCET_URL,
   type FaucetMintResult,
+  type SolFaucetResult,
 } from "@/lib/solana/faucet";
 import { toast, toastPromise } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -49,11 +56,30 @@ export default function FaucetPage() {
   const [usdcAmount, setUsdcAmount] = React.useState("100");
   const [usdcBusy, setUsdcBusy] = React.useState(false);
   const [solBusy, setSolBusy] = React.useState(false);
+  // Persisted in localStorage per cluster, so "already claimed" survives
+  // reloads. The DB ledger remains authoritative — this is purely a UX
+  // shortcut to avoid showing an enabled button that would 409 on click.
+  const solAlreadyClaimed = useFaucetSolClaimed(recipient || null);
   const [claims, setClaims] = React.useState<ClaimEntry[]>([]);
 
   function recordClaim(entry: ClaimEntry) {
     setClaims((prev) => [entry, ...prev].slice(0, 5));
   }
+
+  // If the wallet already holds devnet SOL, signal the tour to skip the
+  // SOL-claim step. The signal is a no-op when the tour is on any other
+  // step (or no tour is active), so the check is safe to run on every
+  // balance update without coupling this page to tour state.
+  const solBalance = useSolBalance(recipient || null);
+  const balanceLamports =
+    solBalance.status === "success" ? solBalance.lamports : null;
+  React.useEffect(() => {
+    if (!recipient) return;
+    if (balanceLamports === null) return;
+    if (balanceLamports > 0n) {
+      signalTourAction(recipient, "sol-claimed");
+    }
+  }, [recipient, balanceLamports]);
 
   async function handleUsdc() {
     if (!recipient || usdcBusy) return;
@@ -83,6 +109,7 @@ export default function FaucetPage() {
         explorer: result.explorer ?? solscanTxUrl(result.signature),
         ts: Date.now(),
       });
+      if (recipient) signalTourAction(recipient, "usdc-minted");
     } catch {
       /* error already toasted */
     } finally {
@@ -91,28 +118,55 @@ export default function FaucetPage() {
   }
 
   async function handleSol() {
-    if (!recipient || solBusy) return;
+    if (!recipient || solBusy || solAlreadyClaimed) return;
     setSolBusy(true);
     try {
-      try {
-        await navigator.clipboard.writeText(recipient);
-      } catch {
-        /* clipboard unavailable, the user can still paste manually */
-      }
-      window.open(SOLANA_PUBLIC_FAUCET_URL, "_blank", "noopener,noreferrer");
-      toast("Address copied", {
-        description:
-          "Paste your wallet address on faucet.solana.com to receive devnet SOL. Limit is roughly 2 SOL per request.",
-      });
+      const result: SolFaucetResult = await toastPromise(
+        claimDevnetSol(recipient),
+        {
+          loading: `Claiming ${SOL_DROP_AMOUNT} devnet SOL…`,
+          success: `Sent ${SOL_DROP_AMOUNT} devnet SOL.`,
+          error: (err) =>
+            err instanceof Error
+              ? `Claim failed: ${err.message}`
+              : "Claim failed.",
+        },
+      );
       recordClaim({
-        id: `sol-${Date.now()}`,
+        id: `${result.signature}-${Date.now()}`,
         token: "SOL",
-        amount: 0,
+        amount: result.sol,
+        signature: result.signature,
+        explorer: result.explorer ?? solscanTxUrl(result.signature),
         ts: Date.now(),
       });
+      markSolClaimed(recipient, solanaConfig.cluster);
+      signalTourAction(recipient, "sol-claimed");
+    } catch (err) {
+      const status =
+        err && typeof err === "object" && "status" in err
+          ? (err as { status?: number }).status
+          : undefined;
+      if (status === 409) {
+        markSolClaimed(recipient, solanaConfig.cluster);
+        // Treat "already claimed" as a satisfied step: the wallet does in
+        // fact have devnet SOL from a previous claim, so the tour should
+        // move on rather than stall on a button the user can't press.
+        signalTourAction(recipient, "sol-claimed");
+      }
     } finally {
       setSolBusy(false);
     }
+  }
+
+  async function handleSolFallback() {
+    if (!recipient) return;
+    try {
+      await navigator.clipboard.writeText(recipient);
+    } catch {
+      /* clipboard unavailable, user can paste manually */
+    }
+    window.open(SOLANA_PUBLIC_FAUCET_URL, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -120,7 +174,7 @@ export default function FaucetPage() {
       <PageHeader
         eyebrow="Devnet"
         title="Faucet"
-        description="Pull test funds straight to a Solana devnet wallet. Mock USDC mints in-app, devnet SOL routes through Solana's official faucet."
+        description="Pull test funds straight to a Solana devnet wallet. Mock USDC mints in-app, devnet SOL airdrops through a backend RPC."
       />
 
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 p-4 sm:p-6 lg:gap-5 lg:p-7">
@@ -198,6 +252,7 @@ export default function FaucetPage() {
                   size="lg"
                   disabled={usdcBusy || !isDevnet}
                   onClick={handleUsdc}
+                  data-tour="usdc-mint"
                   className="w-full"
                 >
                   {usdcBusy ? (
@@ -227,7 +282,7 @@ export default function FaucetPage() {
             disabled={!isDevnet}
             logo={<SolanaLogo className="size-7" />}
             title="Devnet SOL"
-            subtitle="Solana's official faucet rate-limits at roughly 2 SOL per request. We open it in a new tab and copy your address for paste."
+            subtitle={`Cloak's treasury sends a one-time ${SOL_DROP_AMOUNT} SOL drop to cover transaction fees on devnet.`}
           >
             {!recipient ? (
               <ConnectPanel />
@@ -235,41 +290,52 @@ export default function FaucetPage() {
               <>
                 <div className="rounded-xl border border-border bg-background/40 px-3 py-3">
                   <p className="text-[10.5px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                    What happens
+                    Drop
                   </p>
-                  <ol className="mt-1.5 ml-4 list-decimal space-y-0.5 text-[12.5px] text-foreground/85">
-                    <li>Your wallet address is copied to clipboard.</li>
-                    <li>
-                      <code className="font-mono text-[12px]">
-                        faucet.solana.com
-                      </code>{" "}
-                      opens in a new tab.
-                    </li>
-                    <li>Paste, solve the captcha, click request.</li>
-                  </ol>
+                  <p className="mt-1 font-mono text-[18px] text-foreground">
+                    {SOL_DROP_AMOUNT} SOL
+                  </p>
+                  <p className="mt-1 text-[11.5px] text-muted-foreground">
+                    Each wallet can claim once. Need more? Top up via the
+                    official faucet.
+                  </p>
                 </div>
 
                 <FancyButton
                   type="button"
                   variant="primary"
                   size="lg"
-                  disabled={solBusy || !isDevnet}
+                  disabled={solBusy || !isDevnet || solAlreadyClaimed}
                   onClick={handleSol}
+                  data-tour="sol-claim"
                   className="w-full"
                 >
-                  Open Solana faucet
-                  <HugeiconsIcon
-                    icon={ArrowUpRight01Icon}
-                    strokeWidth={2}
-                    className="ml-1"
-                  />
+                  {solBusy ? (
+                    <>
+                      <HugeiconsIcon
+                        icon={Loading03Icon}
+                        strokeWidth={2}
+                        className="animate-spin"
+                      />
+                      Sending…
+                    </>
+                  ) : solAlreadyClaimed ? (
+                    "Already claimed"
+                  ) : (
+                    `Claim ${SOL_DROP_AMOUNT} devnet SOL`
+                  )}
                 </FancyButton>
 
                 <p className="text-[11.5px] leading-5 text-muted-foreground">
-                  In-browser{" "}
-                  <code className="font-mono text-[11px]">requestAirdrop</code>{" "}
-                  on the public RPC is rate-limited and unreliable, so we
-                  delegate to the official Solana UI.
+                  Backed up?{" "}
+                  <button
+                    type="button"
+                    onClick={handleSolFallback}
+                    className="underline underline-offset-2 hover:text-foreground"
+                  >
+                    Use the official faucet
+                  </button>
+                  .
                 </p>
               </>
             )}

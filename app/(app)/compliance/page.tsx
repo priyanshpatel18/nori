@@ -200,7 +200,7 @@ export default function CompliancePage() {
         </div>
 
         <div className="flex flex-col gap-3 lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[1.4fr_1fr] lg:grid-rows-[minmax(0,1fr)]">
-          <div className="flex flex-col lg:min-h-0">
+          <div className="flex flex-col lg:min-h-0" data-tour="compliance-issue">
             <IssueViewingKey
               fromDate={fromDate}
               toDate={toDate}

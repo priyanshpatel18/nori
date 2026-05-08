@@ -1062,7 +1062,7 @@ function TokenPicker({
 }) {
   return (
     <div className="flex h-11 items-center gap-1 rounded-xl border border-border bg-input/60 p-1">
-      {TOKEN_OPTIONS.map((t) => {
+      {TOKEN_OPTIONS.filter((t) => isShieldTokenSupported(t.id)).map((t) => {
         const isActive = value === t.id;
         const supported = isShieldTokenSupported(t.id);
         return (

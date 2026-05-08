@@ -6,6 +6,7 @@ import {
   Copy01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { motion } from "motion/react";
 import Link from "next/link";
 import * as React from "react";
@@ -19,7 +20,10 @@ import {
   useDemoMode,
 } from "@/lib/cloak/demo-mode";
 import { cloakConfig } from "@/lib/cloak/config";
+import { resetOnboarding } from "@/lib/cloak/onboarding";
+import { resetTour } from "@/lib/cloak/tour";
 import { solanaConfig, type SolanaCluster } from "@/lib/solana/config";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 const CLUSTER_LABEL: Record<SolanaCluster, string> = {
@@ -34,6 +38,8 @@ const ENV_CLUSTER = (process.env.NEXT_PUBLIC_SOLANA_CLUSTER ??
 
 export default function SettingsPage() {
   const demo = useDemoMode();
+  const wallet = useWallet();
+  const pubkey = wallet.publicKey?.toBase58() ?? null;
 
   const [busy, setBusy] = React.useState<null | "demo-on" | "demo-off">(null);
 
@@ -48,6 +54,18 @@ export default function SettingsPage() {
       setBusy("demo-off");
       disableDemoMode();
     }
+  }
+
+  function handleReplayTour() {
+    if (!pubkey) {
+      toast.error("Connect a wallet to replay the welcome tour.");
+      return;
+    }
+    resetOnboarding(pubkey);
+    resetTour(pubkey);
+    toast("Welcome tour reset", {
+      description: "Reopening the walkthrough for this wallet.",
+    });
   }
 
   const clusterDot =
@@ -109,11 +127,13 @@ export default function SettingsPage() {
                   test funds. Nothing real is at stake.
                 </p>
               </div>
-              <DemoToggle
-                enabled={demo.enabled}
-                busy={busy !== null}
-                onChange={handleToggleDemo}
-              />
+              <span data-tour="demo-toggle" className="rounded-full">
+                <DemoToggle
+                  enabled={demo.enabled}
+                  busy={busy !== null}
+                  onChange={handleToggleDemo}
+                />
+              </span>
             </div>
             {ENV_CLUSTER !== "devnet" && (
               <p className="text-[11.5px] leading-5 text-muted-foreground">
@@ -121,6 +141,26 @@ export default function SettingsPage() {
                 effect.
               </p>
             )}
+
+            <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-4">
+              <div className="min-w-0">
+                <p className="text-[12.5px] font-medium tracking-tight text-foreground">
+                  Welcome tour
+                </p>
+                <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+                  Replay the first-use walkthrough for this wallet.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleReplayTour}
+                disabled={!pubkey}
+              >
+                Replay
+              </Button>
+            </div>
           </div>
         </section>
 
@@ -153,6 +193,7 @@ export default function SettingsPage() {
 
           <Link
             href="/faucet"
+            data-tour="faucet-link"
             className={cn(
               "group/faucet flex flex-col rounded-2xl border border-border bg-card/40 p-5 sm:p-6",
               "transition-colors hover:border-foreground/25 hover:bg-card/60",

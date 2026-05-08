@@ -1,0 +1,24 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model FaucetClaim {
+  wallet     String   @id
+  signature  String
+  lamports   BigInt
+  ipHash     String?  @map("ip_hash")
+  claimedAt  DateTime @default(now()) @map("claimed_at")
+
+  @@index([ipHash, claimedAt(sort: Desc)], map: "faucet_claims_ip_hash_idx")
+  @@map("faucet_claims")
+}

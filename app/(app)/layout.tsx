@@ -3,6 +3,8 @@ import * as React from "react";
 import { AppSidebar } from "@/components/app-shell/app-sidebar";
 import { AppTopbar } from "@/components/app-shell/app-topbar";
 import { PageTransition } from "@/components/app-shell/page-transition";
+import { TourCoach } from "@/components/onboarding/tour-coach";
+import { WelcomeDialog } from "@/components/onboarding/welcome-dialog";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
 export default function AppLayout({
@@ -19,6 +21,8 @@ export default function AppLayout({
           <PageTransition>{children}</PageTransition>
         </div>
       </SidebarInset>
+      <WelcomeDialog />
+      <TourCoach />
     </SidebarProvider>
   );
 }

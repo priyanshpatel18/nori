@@ -189,7 +189,9 @@ export default function PayrollPage() {
 
               <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-2.5 py-1 font-mono text-[11px] text-foreground/55">
                 <HugeiconsIcon icon={Coins01Icon} size={11} strokeWidth={2} />
-                SOL · USDC · USDT
+                {TOKEN_OPTIONS.filter((t) => isShieldTokenSupported(t.id))
+                  .map((t) => t.label)
+                  .join(" · ")}
               </span>
 
               {parse.kind === "error" && (
@@ -400,7 +402,7 @@ function ParsedSummary({
 
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-0.5 rounded-md border border-border bg-background/60 p-0.5">
-            {TOKEN_OPTIONS.map((t) => {
+            {TOKEN_OPTIONS.filter((t) => isShieldTokenSupported(t.id)).map((t) => {
               const isActive = tokenId === t.id;
               return (
                 <button

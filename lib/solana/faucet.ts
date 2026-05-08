@@ -6,10 +6,16 @@
  * forwards the response.
  */
 export const FAUCET_PROXY_PATH = "/api/faucet";
+export const SOL_FAUCET_PATH = "/api/faucet/sol";
 export const MOCK_USDC_DECIMALS = 6;
 export const MOCK_USDC_MAX_PER_REQUEST = 1_000;
 export const MOCK_USDC_MAX_PER_WALLET_24H = 5_000;
 export const MOCK_USDC_COOLDOWN_SECONDS = 30;
+
+// Cloak's devnet faucet sends a fixed drop from a treasury wallet. Each
+// wallet can claim exactly once, ever. Keep this in sync with
+// DROP_LAMPORTS in app/api/faucet/sol/route.ts.
+export const SOL_DROP_AMOUNT = 0.01;
 
 export const SOLANA_PUBLIC_FAUCET_URL = "https://faucet.solana.com/";
 
@@ -17,6 +23,13 @@ export type FaucetMintResult = {
   signature: string;
   mintedAmount: number;
   recipientAta: string;
+  explorer?: string;
+};
+
+export type SolFaucetResult = {
+  signature: string;
+  lamports: number;
+  sol: number;
   explorer?: string;
 };
 
@@ -47,6 +60,31 @@ export async function airdropDevnetMockUsdc(
     return JSON.parse(text) as FaucetMintResult;
   } catch {
     throw new Error(`Faucet returned non-JSON response: ${text.slice(0, 200)}`);
+  }
+}
+
+export async function claimDevnetSol(
+  recipient: string,
+): Promise<SolFaucetResult> {
+  const res = await fetch(SOL_FAUCET_PATH, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ wallet: recipient }),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    const err = new Error(parseFaucetError(res.status, text)) as Error & {
+      status?: number;
+    };
+    err.status = res.status;
+    throw err;
+  }
+  try {
+    return JSON.parse(text) as SolFaucetResult;
+  } catch {
+    throw new Error(
+      `SOL faucet returned non-JSON response: ${text.slice(0, 200)}`,
+    );
   }
 }
 

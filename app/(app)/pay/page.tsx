@@ -42,6 +42,7 @@ import {
   type ShieldTokenId,
 } from "@/lib/cloak/tokens";
 import { appendPayment } from "@/lib/cloak/payment-history";
+import { signalTourAction } from "@/lib/cloak/tour";
 import { useFastSend } from "@/lib/cloak/use-fast-send";
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanTxUrl } from "@/lib/solana/explorer";
@@ -250,6 +251,9 @@ export default function PayPage() {
             ),
         },
       });
+      if (wallet.publicKey) {
+        signalTourAction(wallet.publicKey.toBase58(), "pay-sent");
+      }
     } catch (err) {
       toastCloakError(toastId, err);
     }
@@ -294,6 +298,7 @@ export default function PayPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+          data-tour="pay-form"
           className="flex min-w-0 flex-col gap-6 rounded-[8px] border border-border bg-card/60 p-5 sm:p-6"
           onSubmit={(e) => {
             e.preventDefault();
@@ -384,7 +389,7 @@ export default function PayPage() {
                 }
               />
               <div className="flex items-center gap-0.5 rounded-md border border-border bg-background/60 p-0.5">
-                {TOKENS.map((t) => {
+                {TOKENS.filter((t) => isShieldTokenSupported(t.id)).map((t) => {
                   const isActive = token === t.id;
                   return (
                     <button

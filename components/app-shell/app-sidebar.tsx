@@ -36,6 +36,19 @@ import { solanaConfig, type SolanaCluster } from "@/lib/solana/config";
 import { solscanAddressUrl } from "@/lib/solana/explorer";
 import { cn } from "@/lib/utils";
 
+// Returns false on the server and during the first client commit, true
+// after hydration. We use this to mount-gate cluster-dependent UI so a
+// client-side cluster override (demo mode → devnet) never disagrees with
+// the server-rendered HTML at hydration time.
+const noopSubscribe = () => () => {};
+function useHydrated(): boolean {
+  return React.useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
+}
+
 const CLUSTER_LABEL: Record<SolanaCluster, string> = {
   "mainnet-beta": "Mainnet",
   devnet: "Devnet",
@@ -109,6 +122,7 @@ const NAV: NavItem[] = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const hydrated = useHydrated();
 
   return (
     <Sidebar collapsible="icon" variant="inset" className="border-r-0">
@@ -195,23 +209,25 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
-        <motion.a
-          href={solscanAddressUrl(cloakConfig.programId.toBase58())}
-          target="_blank"
-          rel="noreferrer"
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.32, duration: 0.3 }}
-          className="block rounded-xl border border-sidebar-border bg-sidebar-accent/40 p-3 transition-colors hover:border-primary/30 hover:bg-sidebar-accent/70 group-data-[collapsible=icon]:hidden"
-          aria-label={`Open shield-pool program on Solscan (${CLUSTER_LABEL[solanaConfig.cluster]})`}
-        >
-          <p className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground">
-            {CLUSTER_LABEL[solanaConfig.cluster]}
-          </p>
-          <p className="mt-1 truncate font-mono text-[11.5px] text-sidebar-foreground/80">
-            {shortProgramId(cloakConfig.programId.toBase58())}
-          </p>
-        </motion.a>
+        {hydrated && (
+          <motion.a
+            href={solscanAddressUrl(cloakConfig.programId.toBase58())}
+            target="_blank"
+            rel="noreferrer"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.32, duration: 0.3 }}
+            className="block rounded-xl border border-sidebar-border bg-sidebar-accent/40 p-3 transition-colors hover:border-primary/30 hover:bg-sidebar-accent/70 group-data-[collapsible=icon]:hidden"
+            aria-label={`Open shield-pool program on Solscan (${CLUSTER_LABEL[solanaConfig.cluster]})`}
+          >
+            <p className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground">
+              {CLUSTER_LABEL[solanaConfig.cluster]}
+            </p>
+            <p className="mt-1 truncate font-mono text-[11.5px] text-sidebar-foreground/80">
+              {shortProgramId(cloakConfig.programId.toBase58())}
+            </p>
+          </motion.a>
+        )}
       </SidebarFooter>
     </Sidebar>
   );
