@@ -178,7 +178,7 @@ export default function CompliancePage() {
         actions={<ViewingKeyButton />}
       />
 
-      <div className="flex flex-col gap-2.5 p-4 sm:p-5 lg:min-h-0 lg:flex-1">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 p-6 sm:p-8 lg:min-h-0 lg:flex-1">
         {!issuer ? (
           <EmptyState
             icon={
@@ -297,18 +297,18 @@ function IssueViewingKey({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-      className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-card/60 p-5"
+      className="flex min-h-0 flex-1 flex-col rounded-[8px] border border-border bg-card/60 p-5"
     >
       <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-4">
         <div className="flex items-center gap-3">
-          <div className="grid size-9 shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+          <div className="grid size-9 shrink-0 place-items-center rounded-md border border-primary/40 bg-primary/10 text-primary">
             <HugeiconsIcon icon={KeyIcon} size={16} strokeWidth={1.6} />
           </div>
           <div className="min-w-0">
             <h2 className="text-[14.5px] font-medium tracking-tight text-foreground">
               Issue a viewing key
             </h2>
-            <p className="text-[12px] text-muted-foreground">
+            <p className="text-[12.5px] text-foreground/65">
               Date-ranged, read-only, revocable.
             </p>
           </div>
@@ -333,7 +333,7 @@ function IssueViewingKey({
               <button
                 type="button"
                 onClick={onClear}
-                className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
+                className="text-[12px] text-foreground/55 transition-colors hover:text-foreground"
               >
                 Clear
               </button>
@@ -350,7 +350,7 @@ function IssueViewingKey({
             />
             <span
               aria-hidden="true"
-              className="text-[11px] text-muted-foreground/70"
+              className="text-[12px] text-foreground/40"
             >
               →
             </span>
@@ -388,7 +388,7 @@ function IssueViewingKey({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.22 }}
-                className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[12px] text-foreground"
+                className="flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[12px] text-foreground"
               >
                 <HugeiconsIcon
                   icon={CheckmarkCircle01Icon}
@@ -399,7 +399,7 @@ function IssueViewingKey({
                 <span className="min-w-0 truncate">
                   Issued for{" "}
                   <span className="font-medium">{justIssued.auditor}</span>
-                  <span className="ml-1 font-mono text-[10.5px] text-muted-foreground">
+                  <span className="ml-1 font-mono text-[10.5px] text-foreground/55">
                     {justIssued.id}
                   </span>
                 </span>
@@ -446,19 +446,19 @@ function ActiveKeysCard({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
-      className="flex shrink-0 flex-col rounded-2xl border border-border bg-card/60 p-4"
+      className="flex shrink-0 flex-col rounded-[8px] border border-border bg-card/60 p-4"
     >
       <div className="flex items-center justify-between">
         <h3 className="text-[13px] font-medium tracking-tight text-foreground">
           Active keys
         </h3>
-        <span className="font-mono text-[10.5px] text-muted-foreground">
+        <span className="font-mono text-[10.5px] text-foreground/55">
           {activeCount} issued
         </span>
       </div>
 
       {keys.length === 0 ? (
-        <p className="mt-3 rounded-lg border border-dashed border-border bg-background/30 px-3 py-4 text-center text-[11px] text-muted-foreground">
+        <p className="mt-3 rounded-md border border-dashed border-border bg-background/30 px-3 py-5 text-center text-[12px] text-foreground/55">
           {walletReady
             ? "No keys issued yet. Use the form to hand one to an auditor."
             : "Connect a wallet to issue keys."}
@@ -517,7 +517,7 @@ function ActiveKeyRow({
       exit={{ opacity: 0, height: 0, marginTop: 0, paddingTop: 0, paddingBottom: 0 }}
       transition={{ duration: 0.22 }}
       className={cn(
-        "group flex items-center gap-2.5 rounded-lg border bg-background/40 px-2.5 py-2",
+        "group flex items-center gap-2.5 rounded-md border bg-background/40 px-2.5 py-2",
         status === "active" ? "border-border" : "border-border/60 opacity-70",
       )}
     >
@@ -525,8 +525,8 @@ function ActiveKeyRow({
         className={cn(
           "grid size-6 shrink-0 place-items-center rounded-md border",
           status === "active"
-            ? "border-primary/20 bg-primary/10 text-primary"
-            : "border-border bg-background/60 text-muted-foreground",
+            ? "border-primary/40 bg-primary/10 text-primary"
+            : "border-border bg-secondary/60 text-foreground/45",
         )}
       >
         <HugeiconsIcon icon={EyeIcon} size={11} strokeWidth={1.8} />
@@ -535,12 +535,12 @@ function ActiveKeyRow({
         <p className="truncate text-[12px] font-medium text-foreground">
           {k.auditor}
           {status === "revoked" ? (
-            <span className="ml-1.5 font-mono text-[9.5px] uppercase tracking-[0.16em] text-muted-foreground/80">
+            <span className="ml-1.5 inline-flex items-center rounded-full border border-border bg-secondary/60 px-1.5 py-px font-mono text-[9.5px] uppercase tracking-[0.18em] text-foreground/55">
               Revoked
             </span>
           ) : null}
         </p>
-        <p className="truncate font-mono text-[10.5px] text-muted-foreground">
+        <p className="truncate font-mono text-[10.5px] text-foreground/55">
           {formatKeyRange(k)} · {k.id}
         </p>
       </div>
@@ -550,13 +550,13 @@ function ActiveKeyRow({
           onClick={handleCopy}
           aria-label={copied ? "Key id copied" : "Copy key id"}
           title={copied ? "Copied" : "Copy id"}
-          className="text-muted-foreground transition-colors hover:text-foreground"
+          className="text-foreground/55 transition-colors hover:text-foreground"
         >
           <HugeiconsIcon
             icon={copied ? CheckmarkCircle01Icon : Copy01Icon}
             size={12}
             strokeWidth={1.8}
-            className={cn(copied && "text-emerald-400")}
+            className={cn(copied && "text-primary")}
           />
         </button>
         {status === "active" ? (
@@ -565,7 +565,7 @@ function ActiveKeyRow({
             onClick={() => onRevoke(k.id)}
             aria-label={`Revoke key for ${k.auditor}`}
             title="Revoke"
-            className="text-muted-foreground transition-colors hover:text-destructive"
+            className="text-foreground/55 transition-colors hover:text-destructive"
           >
             <HugeiconsIcon icon={Delete02Icon} size={12} strokeWidth={1.8} />
           </button>
@@ -575,7 +575,7 @@ function ActiveKeyRow({
             onClick={() => onDelete(k.id)}
             aria-label={`Remove key for ${k.auditor}`}
             title="Remove"
-            className="text-muted-foreground transition-colors hover:text-destructive"
+            className="text-foreground/55 transition-colors hover:text-destructive"
           >
             <HugeiconsIcon icon={Delete02Icon} size={12} strokeWidth={1.8} />
           </button>
@@ -613,14 +613,14 @@ function TransactionsCard({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-      className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-card/60 p-4"
+      className="flex min-h-0 flex-1 flex-col rounded-[8px] border border-border bg-card/60 p-4"
     >
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <h3 className="text-[13px] font-medium tracking-tight text-foreground">
             Transactions
           </h3>
-          <p className="mt-0.5 truncate text-[10.5px] text-muted-foreground">
+          <p className="mt-0.5 truncate text-[11.5px] text-foreground/55">
             {hint}
           </p>
         </div>
@@ -646,7 +646,7 @@ function TransactionsCard({
           />
         ))}
         {transactions.length === 0 ? (
-          <li className="grid place-items-center rounded-lg border border-dashed border-border bg-background/30 px-3 py-6 text-center text-[11px] text-muted-foreground">
+          <li className="grid place-items-center rounded-md border border-dashed border-border bg-background/30 px-3 py-6 text-center text-[12px] text-foreground/55">
             {hint}
           </li>
         ) : null}
@@ -684,7 +684,7 @@ function TransactionRow({
       <button
         type="button"
         onClick={() => onSelect(tx)}
-        className="group flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-background/40 px-2.5 py-2 text-left transition-colors hover:border-primary/30 hover:bg-card/70"
+        className="group flex w-full items-center justify-between gap-2 rounded-md border border-border bg-background/40 px-2.5 py-2 text-left transition-colors hover:border-primary/30 hover:bg-background/60"
       >
         <div className="min-w-0">
           <p className="truncate text-[11.5px] font-medium text-foreground">
@@ -700,11 +700,11 @@ function TransactionRow({
               {isDeposit ? "−" : "+"}
               {amount}
               {symbol ? (
-                <span className="ml-1 text-muted-foreground">{symbol}</span>
+                <span className="ml-1 text-foreground/55">{symbol}</span>
               ) : null}
             </span>
           </p>
-          <p className="truncate font-mono text-[10px] text-muted-foreground">
+          <p className="truncate font-mono text-[10.5px] text-foreground/55">
             {sigShort} · {formatTxDate(tx.timestamp)}
           </p>
         </div>
@@ -712,7 +712,7 @@ function TransactionRow({
           icon={ArrowRight01Icon}
           size={12}
           strokeWidth={2}
-          className="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
+          className="shrink-0 text-foreground/55 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
         />
       </button>
     </motion.li>
@@ -798,7 +798,7 @@ function TxDetailBody({ tx }: { tx: ReceivedTransaction }) {
           {tx.txType === "deposit" ? "−" : "+"}
           {netAmount}
           {symbol ? (
-            <span className="ml-1.5 text-[14px] text-muted-foreground">
+            <span className="ml-1.5 text-[14px] text-foreground/55">
               {symbol}
             </span>
           ) : null}
@@ -820,7 +820,7 @@ function TxDetailBody({ tx }: { tx: ReceivedTransaction }) {
             href={solscanUrl}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 py-2.5 text-[12.5px] text-foreground transition-colors hover:border-primary/40 hover:bg-primary/15"
+            className="flex items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-2.5 text-[12.5px] text-foreground transition-colors hover:border-primary/60 hover:bg-primary/[0.14]"
           >
             <span className="flex items-center gap-2">
               <HugeiconsIcon
@@ -831,21 +831,21 @@ function TxDetailBody({ tx }: { tx: ReceivedTransaction }) {
               />
               View on Solscan
             </span>
-            <span className="font-mono text-[10.5px] text-muted-foreground">
+            <span className="font-mono text-[10.5px] text-foreground/55">
               {tx.signature?.slice(0, 6)}…{tx.signature?.slice(-6)}
             </span>
           </a>
         ) : (
-          <div className="rounded-xl border border-dashed border-border bg-background/40 px-3 py-2.5 text-[12px] text-muted-foreground">
+          <div className="rounded-md border border-dashed border-border bg-background/40 px-3 py-2.5 text-[12px] text-foreground/55">
             Signature not recorded — Solscan link unavailable.
           </div>
         )}
 
         <div className="flex flex-col gap-2">
-          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground/80">
+          <p className="text-[12.5px] text-foreground/55">
             Raw fields
           </p>
-          <dl className="grid grid-cols-1 divide-y divide-border/70 rounded-xl border border-border bg-background/30 text-[12px]">
+          <dl className="grid grid-cols-1 divide-y divide-border/70 rounded-md border border-border bg-background/30 text-[12px]">
             <RawField
               label="Type"
               value={tx.txType}
@@ -935,8 +935,8 @@ function DrawerStat({
   muted?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-0.5 rounded-xl border border-border bg-background/40 px-3 py-2">
-      <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted-foreground/80">
+    <div className="flex flex-col gap-0.5 rounded-[6px] border border-border bg-background/40 px-3 py-2">
+      <span className="text-[10.5px] text-foreground/55">
         {label}
       </span>
       <span
@@ -948,7 +948,7 @@ function DrawerStat({
       >
         {value}
         {symbol ? (
-          <span className="ml-1 text-[10.5px] text-muted-foreground">
+          <span className="ml-1 text-[10.5px] text-foreground/55">
             {symbol}
           </span>
         ) : null}
@@ -972,7 +972,7 @@ function RawField({
 }) {
   return (
     <div className="flex items-start justify-between gap-3 px-3 py-2">
-      <dt className="shrink-0 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/80">
+      <dt className="shrink-0 text-[11.5px] text-foreground/55">
         {label}
       </dt>
       <dd className="min-w-0 flex-1 text-right">
@@ -982,7 +982,7 @@ function RawField({
             target="_blank"
             rel="noreferrer"
             className={cn(
-              "block truncate text-foreground underline-offset-2 hover:underline",
+              "link-underline block truncate text-foreground",
               mono && "font-mono",
             )}
             title={value}
@@ -1001,7 +1001,7 @@ function RawField({
           </span>
         )}
         {hint ? (
-          <span className="block truncate text-[10px] text-muted-foreground/80">
+          <span className="block truncate text-[10.5px] text-foreground/45">
             {hint}
           </span>
         ) : null}
@@ -1174,14 +1174,14 @@ function SummaryStats({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
       aria-label="Account summary"
-      className="grid items-stretch gap-3 rounded-2xl border border-border bg-card/60 p-4 sm:grid-cols-[auto_1fr]"
+      className="grid items-stretch gap-3 rounded-[8px] border border-border bg-card/60 p-4 sm:grid-cols-[auto_1fr]"
     >
       <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-start sm:justify-center sm:border-r sm:border-border/70 sm:pr-4">
         <div className="min-w-0">
-          <p className="font-mono text-[9.5px] font-medium uppercase tracking-[0.2em] text-primary/80">
+          <p className="text-[12px] text-foreground/55">
             Account summary
           </p>
-          <p className="mt-0.5 truncate text-[12px] text-muted-foreground">
+          <p className="mt-0.5 truncate text-[12px] text-foreground/55">
             {subtitle}
           </p>
         </div>
@@ -1198,8 +1198,8 @@ function SummaryStats({
                   className={cn(
                     "flex items-center gap-1.5 rounded-md border px-1.5 py-1 font-mono text-[10.5px] uppercase tracking-[0.14em] transition-colors",
                     isActive
-                      ? "border-primary/30 bg-primary/10 text-foreground"
-                      : "border-border bg-background/40 text-muted-foreground hover:border-primary/20 hover:text-foreground",
+                      ? "border-primary/40 bg-primary/10 text-foreground"
+                      : "border-border bg-background/60 text-foreground/55 hover:border-primary/30 hover:text-foreground",
                   )}
                 >
                   <TokenLogo
@@ -1270,8 +1270,8 @@ function Stat({
   tone: "positive" | "negative" | "neutral" | "muted";
 }) {
   return (
-    <div className="flex flex-col gap-0.5 rounded-xl border border-border bg-background/40 px-3 py-2">
-      <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-muted-foreground/80">
+    <div className="flex flex-col gap-0.5 rounded-[6px] border border-border bg-background/40 px-3 py-2">
+      <span className="text-[10.5px] text-foreground/55">
         {label}
       </span>
       <span

@@ -196,7 +196,7 @@ export default function HistoryPage() {
         description="Every payment you've sent through Nori. The chain sees a transaction. Only you see what's inside."
       />
 
-      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-2.5 p-4 sm:p-5">
+      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-2.5 p-6 sm:p-8">
         <div className="shrink-0">
           <BalanceSummary summaries={tokenSummaries} />
         </div>
@@ -376,11 +376,11 @@ function Pagination({
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-      <p className="text-[11.5px] text-muted-foreground">
-        <span className="font-mono text-foreground/80">
+      <p className="text-[11.5px] text-foreground/55">
+        <span className="font-mono text-foreground/85">
           {pageStart + 1}–{pageEnd}
         </span>{" "}
-        of <span className="font-mono text-foreground/80">{total}</span>
+        of <span className="font-mono text-foreground/85">{total}</span>
       </p>
       <div className="flex items-center gap-1">
         <Button
@@ -393,7 +393,7 @@ function Pagination({
         >
           <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={2} />
         </Button>
-        <span className="px-2 font-mono text-[11.5px] tabular-nums text-muted-foreground">
+        <span className="px-2 font-mono text-[11.5px] tabular-nums text-foreground/55">
           {page + 1} / {pageCount}
         </span>
         <Button
@@ -451,7 +451,7 @@ function FilterTabs({
   };
 
   return (
-    <div className="scrollbar-cloak flex h-9 max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-border bg-input/60 p-1 sm:self-start sm:overflow-visible">
+    <div className="scrollbar-cloak flex h-9 max-w-full items-center gap-1 overflow-x-auto rounded-md border border-border bg-input/60 p-0.5 sm:self-start sm:overflow-visible">
       {FILTERS.map((f) => {
         const isActive = value === f.id;
         const count = countFor(f.id);
@@ -466,17 +466,17 @@ function FilterTabs({
               // Override the variant defaults: the active indicator is a
               // motion-animated pill underneath, so we want no hover bg
               // and a normal-cased label.
-              "relative h-7 rounded-lg px-2.5 text-[12px] font-medium hover:bg-transparent",
+              "relative h-7 rounded-md px-2.5 text-[12px] font-medium hover:bg-transparent",
               isActive
                 ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground",
+                : "text-foreground/55 hover:text-foreground",
             )}
           >
             {isActive && (
               <motion.span
                 layoutId="history-filter-active"
                 aria-hidden="true"
-                className="absolute inset-0 -z-0 rounded-lg border border-primary/30 bg-primary/15"
+                className="absolute inset-0 -z-0 rounded-md border border-primary/40 bg-primary/10"
                 transition={{
                   type: "spring",
                   stiffness: 380,
@@ -488,7 +488,7 @@ function FilterTabs({
             <span
               className={cn(
                 "relative z-10 font-mono text-[10.5px] tabular-nums",
-                isActive ? "text-primary" : "text-muted-foreground/70",
+                isActive ? "text-primary" : "text-foreground/40",
               )}
             >
               {count}
@@ -519,7 +519,7 @@ function DateRangeBar({
     <div className="flex flex-wrap items-center gap-2">
       <Label
         htmlFor="history-from"
-        className="font-mono text-[11px] uppercase tracking-[0.16em] text-foreground/60"
+        className="text-[12.5px] text-foreground/55"
       >
         Range
       </Label>
@@ -532,7 +532,7 @@ function DateRangeBar({
         aria-label="From date"
         className="h-9 min-w-0 flex-1 px-2.5 sm:flex-none sm:w-[10.5rem]"
       />
-      <span className="text-[11px] text-muted-foreground/60">→</span>
+      <span className="text-[12px] text-foreground/40">→</span>
       <Input
         id="history-to"
         type="date"
@@ -548,7 +548,7 @@ function DateRangeBar({
           variant="ghost"
           size="xs"
           onClick={onClear}
-          className="font-mono uppercase tracking-[0.14em]"
+          className="text-[12px]"
         >
           Clear
         </Button>
@@ -572,7 +572,7 @@ function ScanStatusBar({
 }) {
   if (status === "scanning" && progress) {
     return (
-      <p className="text-[11.5px] text-muted-foreground">{progress}</p>
+      <p className="text-[11.5px] text-foreground/65">{progress}</p>
     );
   }
   if (status === "error" && error) {
@@ -587,13 +587,13 @@ function ScanStatusBar({
     ? `${scan.report.lastSignature.slice(0, 4)}…${scan.report.lastSignature.slice(-4)}`
     : "—";
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-foreground/55">
       <span>Synced {formatRelative(scan.scannedAt)}</span>
-      <span className="text-muted-foreground/60">·</span>
+      <span className="text-foreground/30">·</span>
       <span className="font-mono">
         {scan.report.transactions.length} cached
       </span>
-      <span className="text-muted-foreground/60">·</span>
+      <span className="text-foreground/30">·</span>
       <span className="font-mono" title="Incremental scan cursor (lastSignature)">
         cursor {cursor}
       </span>
@@ -602,7 +602,7 @@ function ScanStatusBar({
         variant="ghost"
         size="xs"
         onClick={onReset}
-        className="ml-1 font-mono uppercase tracking-[0.14em]"
+        className="ml-1 text-[12px]"
       >
         Reset cache
       </Button>
@@ -720,7 +720,7 @@ function BalanceSummary({ summaries }: { summaries: TokenSummary[] }) {
             key={s.mint}
             variant="default"
             title={`In ${inStr} · Out ${outStr} · ${s.count} tx${s.count === 1 ? "" : "s"}`}
-            className="gap-1.5 py-1 pl-1 pr-2.5 text-[11.5px] tracking-normal normal-case transition-colors hover:border-primary/30 hover:bg-card/70"
+            className="gap-1.5 py-1 pl-1 pr-2.5 text-[11.5px] tracking-normal normal-case transition-colors hover:border-primary/30 hover:bg-background/60"
           >
             <TokenLogo
               mint={s.mint}
@@ -743,7 +743,7 @@ function BalanceSummary({ summaries }: { summaries: TokenSummary[] }) {
               {netSign}
               {netStr}
             </span>
-            <span className="font-mono text-[10px] text-muted-foreground/70">
+            <span className="font-mono text-[10px] text-foreground/40">
               {s.count}
             </span>
           </Badge>
@@ -810,7 +810,7 @@ function DirChip({ direction }: { direction: "in" | "out" }) {
         "px-1.5 py-px font-mono text-[9.5px] tracking-[0.16em]",
         direction === "in"
           ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-          : "border-yellow-600/30 bg-yellow-600/10 text-yellow-700 dark:text-yellow-400",
+          : "border-primary/40 bg-primary/10 text-primary",
       )}
     >
       {direction === "in" ? "In" : "Out"}
@@ -822,7 +822,7 @@ function TypeChip({ children }: { children: React.ReactNode }) {
   return (
     <Badge
       variant="default"
-      className="border-border bg-background/40 px-1.5 py-px font-mono text-[9.5px] tracking-[0.16em] text-muted-foreground"
+      className="border-border bg-background/40 px-1.5 py-px font-mono text-[9.5px] tracking-[0.16em] text-foreground/55"
     >
       {children}
     </Badge>
@@ -957,9 +957,9 @@ function SingleRow({ tx, index }: { tx: PaymentRecord; index: number }) {
         duration: 0.28,
         ease: [0.22, 1, 0.36, 1],
       }}
-      className="group flex items-center gap-3 rounded-xl border border-border bg-card/40 px-3 py-3 transition-colors hover:border-primary/30 hover:bg-card/70 sm:gap-4 sm:px-4 sm:py-3.5"
+      className="group flex items-center gap-3 rounded-[8px] border border-border bg-background/40 px-3 py-3 transition-colors hover:border-primary/30 hover:bg-background/60 sm:gap-4 sm:px-4 sm:py-3.5"
     >
-      <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+      <div className="grid size-9 shrink-0 place-items-center rounded-md border border-primary/40 bg-primary/10 text-primary">
         <HugeiconsIcon icon={ArrowUp01Icon} size={14} strokeWidth={2} />
       </div>
 
@@ -968,11 +968,11 @@ function SingleRow({ tx, index }: { tx: PaymentRecord; index: number }) {
           <p className="truncate font-mono text-[13px] text-foreground">
             {recipientShort}
           </p>
-          <span className="hidden font-mono text-[10.5px] text-muted-foreground sm:inline">
+          <span className="hidden font-mono text-[10.5px] text-foreground/55 sm:inline">
             {sigShort}
           </span>
         </div>
-        <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+        <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-foreground/55">
           <span>{dateLabel}</span>
           <DirChip direction="out" />
           <TypeChip>Pay</TypeChip>
@@ -983,15 +983,15 @@ function SingleRow({ tx, index }: { tx: PaymentRecord; index: number }) {
         <div className="text-right">
           <p className="font-mono text-[13.5px] text-foreground">
             −{formattedNet}{" "}
-            <span className="text-muted-foreground">{tx.token}</span>
+            <span className="text-foreground/55">{tx.token}</span>
           </p>
-          <p className="text-[11px] text-muted-foreground">Settled</p>
+          <p className="text-[11px] text-foreground/55">Settled</p>
         </div>
         <a
           href={payoutUrl}
           target="_blank"
           rel="noreferrer"
-          className="text-muted-foreground transition-colors hover:text-primary"
+          className="text-foreground/55 transition-colors hover:text-primary"
           aria-label="Open payout transaction on Solscan"
           title="Open payout transaction on Solscan"
         >
@@ -1020,9 +1020,9 @@ function SwapRow({ tx, index }: { tx: PaymentRecord; index: number }) {
         duration: 0.28,
         ease: [0.22, 1, 0.36, 1],
       }}
-      className="group flex items-center gap-3 rounded-xl border border-border bg-card/40 px-3 py-3 transition-colors hover:border-primary/30 hover:bg-card/70 sm:gap-4 sm:px-4 sm:py-3.5"
+      className="group flex items-center gap-3 rounded-[8px] border border-border bg-background/40 px-3 py-3 transition-colors hover:border-primary/30 hover:bg-background/60 sm:gap-4 sm:px-4 sm:py-3.5"
     >
-      <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+      <div className="grid size-9 shrink-0 place-items-center rounded-md border border-primary/40 bg-primary/10 text-primary">
         <HugeiconsIcon icon={Exchange01Icon} size={14} strokeWidth={2} />
       </div>
 
@@ -1031,11 +1031,11 @@ function SwapRow({ tx, index }: { tx: PaymentRecord; index: number }) {
           <p className="truncate font-mono text-[13px] text-foreground">
             {tx.token} → {swap.outputToken}
           </p>
-          <span className="hidden font-mono text-[10.5px] text-muted-foreground sm:inline">
+          <span className="hidden font-mono text-[10.5px] text-foreground/55 sm:inline">
             {sigShort}
           </span>
         </div>
-        <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+        <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-foreground/55">
           <span>{dateLabel}</span>
           <DirChip direction="out" />
           <TypeChip>Swap</TypeChip>
@@ -1046,13 +1046,13 @@ function SwapRow({ tx, index }: { tx: PaymentRecord; index: number }) {
         <div className="text-right">
           <p className="font-mono text-[13.5px] text-foreground">
             −{sellFormatted}{" "}
-            <span className="text-muted-foreground">{tx.token}</span>
+            <span className="text-foreground/55">{tx.token}</span>
           </p>
           <p className="font-mono text-[12px] text-emerald-400">
             +{buyFormatted}{" "}
-            <span className="text-muted-foreground">{swap.outputToken}</span>
+            <span className="text-foreground/55">{swap.outputToken}</span>
           </p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[11px] text-foreground/55">
             {settled ? "Settled" : "Pending settlement"}
           </p>
         </div>
@@ -1060,7 +1060,7 @@ function SwapRow({ tx, index }: { tx: PaymentRecord; index: number }) {
           href={solscanTxUrl(sigForLink)}
           target="_blank"
           rel="noreferrer"
-          className="text-muted-foreground transition-colors hover:text-primary"
+          className="text-foreground/55 transition-colors hover:text-primary"
           aria-label="Open swap transaction on Solscan"
           title="Open swap transaction on Solscan"
         >
@@ -1097,7 +1097,7 @@ function ReceivedRow({
         duration: 0.28,
         ease: [0.22, 1, 0.36, 1],
       }}
-      className="group flex items-center gap-3 rounded-xl border border-border bg-card/40 px-3 py-3 transition-colors hover:border-primary/30 hover:bg-card/70 sm:gap-4 sm:px-4 sm:py-3.5"
+      className="group flex items-center gap-3 rounded-[8px] border border-border bg-background/40 px-3 py-3 transition-colors hover:border-primary/30 hover:bg-background/60 sm:gap-4 sm:px-4 sm:py-3.5"
     >
       <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
         <HugeiconsIcon icon={ArrowDown01Icon} size={14} strokeWidth={2} />
@@ -1109,12 +1109,12 @@ function ReceivedRow({
             {recipientShort}
           </p>
           {sigShort && (
-            <span className="hidden font-mono text-[10.5px] text-muted-foreground sm:inline">
+            <span className="hidden font-mono text-[10.5px] text-foreground/55 sm:inline">
               {sigShort}
             </span>
           )}
         </div>
-        <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+        <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-foreground/55">
           <span>{dateLabel}</span>
           <DirChip direction="in" />
           <TypeChip>{txTypeLabel(tx.txType)}</TypeChip>
@@ -1125,16 +1125,16 @@ function ReceivedRow({
         <div className="text-right">
           <p className="font-mono text-[13.5px] text-emerald-400">
             +{formattedNet}{" "}
-            <span className="text-muted-foreground">{symbol}</span>
+            <span className="text-foreground/55">{symbol}</span>
           </p>
-          <p className="text-[11px] text-muted-foreground">Settled</p>
+          <p className="text-[11px] text-foreground/55">Settled</p>
         </div>
         {explorerUrl && (
           <a
             href={explorerUrl}
             target="_blank"
             rel="noreferrer"
-            className="text-muted-foreground transition-colors hover:text-primary"
+            className="text-foreground/55 transition-colors hover:text-primary"
             aria-label="Open transaction on Solscan"
             title="Open transaction on Solscan"
           >
@@ -1191,7 +1191,7 @@ function BatchRow({
           duration: 0.28,
           ease: [0.22, 1, 0.36, 1],
         }}
-        className="overflow-hidden rounded-xl border border-border bg-card/40 transition-colors hover:border-primary/30 hover:bg-card/70"
+        className="overflow-hidden rounded-[8px] border border-border bg-background/40 transition-colors hover:border-primary/30 hover:bg-background/60"
       >
         <Button
           type="button"
@@ -1201,7 +1201,7 @@ function BatchRow({
           // (h-9, rounded-4xl, centered, no border) so it fills the card.
           className="group flex h-auto w-full items-center justify-start gap-3 rounded-none px-3 py-3 text-left hover:bg-transparent sm:gap-4 sm:px-4 sm:py-3.5"
         >
-          <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+          <div className="grid size-9 shrink-0 place-items-center rounded-md border border-primary/40 bg-primary/10 text-primary">
             <HugeiconsIcon
               icon={isRecurring ? Calendar03Icon : UserMultipleIcon}
               size={14}
@@ -1215,15 +1215,15 @@ function BatchRow({
                 {batchLabel} · {rows.length} recipient
                 {rows.length === 1 ? "" : "s"}
               </p>
-              <span className="hidden font-mono text-[10.5px] text-muted-foreground sm:inline">
+              <span className="hidden font-mono text-[10.5px] text-foreground/55 sm:inline">
                 {sigShort}
               </span>
             </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-muted-foreground">
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-foreground/55">
               <span>{dateLabel}</span>
               <DirChip direction="out" />
               <TypeChip>{batchLabel}</TypeChip>
-              <span className="hidden text-muted-foreground/70 sm:inline">
+              <span className="hidden text-foreground/40 sm:inline">
                 · Show recipients
               </span>
             </div>
@@ -1233,9 +1233,9 @@ function BatchRow({
             <div className="text-right">
               <p className="font-mono text-[13.5px] text-foreground">
                 −{formatBaseUnits(totalNet.toString(), decimals)}{" "}
-                <span className="text-muted-foreground">{token}</span>
+                <span className="text-foreground/55">{token}</span>
               </p>
-              <p className="text-[11px] text-muted-foreground">View</p>
+              <p className="text-[11px] text-foreground/55">View</p>
             </div>
           </div>
         </Button>
@@ -1254,14 +1254,14 @@ function BatchRow({
                 href={depositUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="font-mono text-foreground/80 underline underline-offset-2"
+                className="link-underline font-mono text-foreground/85"
               >
                 {sigShort} ↗
               </a>
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/40 px-3 py-2 text-[11.5px] text-muted-foreground">
+          <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-background/40 px-3 py-2 text-[11.5px] text-foreground/65">
             <span className="font-mono">
               Gross {formatBaseUnits(totalAmount.toString(), decimals)} {token}
             </span>
@@ -1270,7 +1270,7 @@ function BatchRow({
             </span>
           </div>
 
-          <ul className="max-h-[320px] divide-y divide-border overflow-y-auto rounded-lg border border-border">
+          <ul className="max-h-[320px] divide-y divide-border overflow-y-auto rounded-md border border-border">
             {rows.map((r) => {
               const recipientShort = `${r.recipient.slice(0, 4)}…${r.recipient.slice(-4)}`;
               const formattedNet = formatBaseUnits(r.netRaw, r.decimals);
@@ -1280,18 +1280,18 @@ function BatchRow({
                   key={r.id}
                   className="flex items-center gap-4 px-4 py-2.5"
                 >
-                  <span className="font-mono text-[12.5px] text-foreground/90">
+                  <span className="font-mono text-[12.5px] text-foreground">
                     {recipientShort}
                   </span>
-                  <span className="ml-auto font-mono text-[12.5px] text-foreground/90">
+                  <span className="ml-auto font-mono text-[12.5px] text-foreground">
                     −{formattedNet}{" "}
-                    <span className="text-muted-foreground">{r.token}</span>
+                    <span className="text-foreground/55">{r.token}</span>
                   </span>
                   <a
                     href={payoutUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-muted-foreground transition-colors hover:text-primary"
+                    className="text-foreground/55 transition-colors hover:text-primary"
                     aria-label="Open payout transaction on Solscan"
                     title="Open payout transaction on Solscan"
                   >

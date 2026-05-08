@@ -108,7 +108,7 @@ export default function PayrollPage() {
         description="Upload a CSV. One signature covers the whole batch, every recipient paid privately from the shielded pool."
       />
 
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 sm:px-8">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10 md:px-8">
         <DueBanner
           total={due.total}
           groups={due.groups}
@@ -154,9 +154,9 @@ export default function PayrollPage() {
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
               className={cn(
-                "group relative flex cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border border-dashed border-border bg-card/40 px-8 py-14 text-center transition-colors",
-                "hover:border-primary/40 hover:bg-card/60",
-                drag && "border-primary/60 bg-primary/5",
+                "group relative flex cursor-pointer flex-col items-center justify-center gap-4 overflow-hidden rounded-[8px] border border-dashed border-border bg-background/40 px-8 py-16 text-center transition-colors",
+                "hover:border-primary/40 hover:bg-background/60",
+                drag && "border-primary/60 bg-primary/[0.04]",
               )}
             >
               <input
@@ -171,37 +171,29 @@ export default function PayrollPage() {
                 }}
               />
 
-              <motion.div
+              <span
                 aria-hidden="true"
-                initial={{ scale: 0.92, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{
-                  delay: 0.08,
-                  type: "spring",
-                  stiffness: 320,
-                  damping: 22,
-                }}
-                className="grid size-12 place-items-center rounded-2xl border border-primary/20 bg-primary/10 text-primary"
+                className="grid size-9 place-items-center rounded-md border border-border bg-background/60 text-foreground/70"
               >
-                <HugeiconsIcon icon={Upload01Icon} size={20} strokeWidth={1.6} />
-              </motion.div>
+                <HugeiconsIcon icon={Upload01Icon} size={16} strokeWidth={1.7} />
+              </span>
 
-              <div className="flex flex-col gap-1">
-                <p className="text-[15px] font-medium text-foreground">
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[15px] font-medium tracking-tight text-foreground">
                   Drop your roster CSV
                 </p>
-                <p className="text-[13px] text-muted-foreground">
+                <p className="text-[13px] text-foreground/55">
                   Columns: wallet, amount. Optional: label. Up to 1,000 rows.
                 </p>
               </div>
 
-              <span className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 py-1 font-mono text-[11px] text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-2.5 py-1 font-mono text-[11px] text-foreground/55">
                 <HugeiconsIcon icon={Coins01Icon} size={11} strokeWidth={2} />
                 SOL · USDC · USDT
               </span>
 
               {parse.kind === "error" && (
-                <div className="mt-3 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-[12px] text-destructive">
+                <div className="mt-3 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-[12px] text-destructive">
                   <HugeiconsIcon
                     icon={Alert02Icon}
                     size={12}
@@ -365,38 +357,36 @@ function ParsedSummary({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
       transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-5 rounded-2xl border border-border bg-card/60 p-6 sm:p-8"
+      className="flex flex-col gap-5 rounded-[8px] border border-border bg-card/60 p-5 sm:p-6"
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 flex-col">
-          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            Roster
-          </p>
+          <p className="text-[13px] text-foreground/55">Roster</p>
           <p className="mt-1 truncate font-mono text-[13.5px] text-foreground">
             {state.fileName}
           </p>
           {state.kind === "ready" && (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11.5px]">
-              <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-primary">
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[10.5px]">
+              <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 uppercase tracking-[0.18em] text-primary">
                 <HugeiconsIcon
                   icon={CheckmarkCircle01Icon}
                   size={10}
-                  strokeWidth={2.2}
+                  strokeWidth={2}
                 />
                 {totals.validCount} valid
               </span>
               {totals.invalidCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-destructive">
+                <span className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-1.5 py-0.5 uppercase tracking-[0.18em] text-destructive">
                   <HugeiconsIcon
                     icon={Alert02Icon}
                     size={10}
-                    strokeWidth={2.2}
+                    strokeWidth={2}
                   />
                   {totals.invalidCount} invalid
                 </span>
               )}
               {state.result.errors.length > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background/40 px-2 py-0.5 text-muted-foreground">
+                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary/60 px-1.5 py-0.5 uppercase tracking-[0.18em] text-foreground/60">
                   {state.result.errors.length} parse issue
                   {state.result.errors.length === 1 ? "" : "s"}
                 </span>
@@ -404,12 +394,12 @@ function ParsedSummary({
             </div>
           )}
           {state.kind === "parsing" && (
-            <p className="mt-1 text-[12.5px] text-muted-foreground">Parsing…</p>
+            <p className="mt-1 text-[12.5px] text-foreground/55">Parsing…</p>
           )}
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 rounded-xl border border-border bg-background/40 p-1">
+          <div className="flex items-center gap-0.5 rounded-md border border-border bg-background/60 p-0.5">
             {TOKEN_OPTIONS.map((t) => {
               const isActive = tokenId === t.id;
               return (
@@ -418,17 +408,17 @@ function ParsedSummary({
                   type="button"
                   onClick={() => setTokenId(t.id)}
                   className={cn(
-                    "relative flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+                    "relative flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-[12px] font-medium transition-colors",
                     isActive
                       ? "text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
+                      : "text-foreground/55 hover:text-foreground",
                   )}
                 >
                   {isActive && (
                     <motion.span
                       layoutId="payroll-token-active"
                       aria-hidden="true"
-                      className="absolute inset-0 -z-0 rounded-lg bg-secondary"
+                      className="absolute inset-0 -z-0 rounded-sm bg-secondary/80"
                       transition={{
                         type: "spring",
                         stiffness: 380,
@@ -448,7 +438,7 @@ function ParsedSummary({
           <button
             type="button"
             onClick={onReset}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/60 px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-[12px] text-foreground/65 transition-colors hover:border-destructive/40 hover:text-destructive"
           >
             <HugeiconsIcon icon={Delete02Icon} size={12} strokeWidth={2} />
             Clear
@@ -457,14 +447,14 @@ function ParsedSummary({
       </div>
 
       {!tokenSupported && (
-        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
+        <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
           <HugeiconsIcon icon={Alert02Icon} size={12} strokeWidth={2.2} />
           {tokenId} is not available on {solanaConfig.cluster}.
         </div>
       )}
 
       {state.kind === "ready" && state.result.errors.length > 0 && (
-        <ul className="flex flex-col gap-1.5 rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-[12px] text-destructive">
+        <ul className="flex flex-col gap-1.5 rounded-[6px] border border-destructive/20 bg-destructive/5 p-3 text-[12px] text-destructive">
           {state.result.errors.slice(0, 5).map((err, i) => (
             <li key={i} className="flex items-start gap-2">
               <HugeiconsIcon
@@ -586,27 +576,27 @@ function Receipt({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-5 rounded-2xl border border-border bg-background/40 p-5 sm:p-6"
+      className="flex flex-col gap-5 rounded-[8px] border border-border bg-background/40 p-5 sm:p-6"
     >
       <div className="flex items-start gap-3">
         <motion.span
           initial={{ scale: 0.6, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1], delay: 0.05 }}
-          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"
+          className="flex size-8 shrink-0 items-center justify-center rounded-full border border-primary/40 bg-primary/10 text-primary"
           aria-hidden="true"
         >
           <HugeiconsIcon
             icon={CheckmarkCircle01Icon}
-            size={18}
-            strokeWidth={2.2}
+            size={16}
+            strokeWidth={2}
           />
         </motion.span>
         <div className="flex flex-col">
           <h3 className="text-[16px] font-medium tracking-tight text-foreground">
             Roster complete
           </h3>
-          <p className="mt-1 text-[12.5px] leading-5 text-muted-foreground">
+          <p className="mt-1 text-[12.5px] leading-5 text-foreground/65">
             <span className="font-medium text-foreground">
               {summary.confirmed} of {summary.total}
             </span>{" "}
@@ -623,17 +613,17 @@ function Receipt({
             {durationSeconds.toFixed(1)}s
             {invalidSkipped > 0 && ` · ${invalidSkipped} skipped`}
           </p>
-          <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-            Total: <span className="text-foreground/70">[redacted]</span>
+          <p className="mt-1 font-mono text-[11px] text-foreground/55">
+            Total: <span className="text-foreground/75">[redacted]</span>
           </p>
           {summary.depositSignature && (
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-[11px] text-foreground/55">
               Batch deposit:{" "}
               <a
                 href={solscanTxUrl(summary.depositSignature)}
                 target="_blank"
                 rel="noreferrer"
-                className="font-mono text-foreground/80 underline underline-offset-2"
+                className="link-underline font-mono text-foreground/85"
               >
                 {shortSig(summary.depositSignature)} ↗
               </a>
@@ -642,18 +632,18 @@ function Receipt({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border">
+      <div className="overflow-hidden rounded-[6px] border border-border bg-background/40">
         <div className="scrollbar-cloak max-h-[360px] overflow-x-auto overflow-y-auto">
           <table className="w-full min-w-[480px] text-left text-[12.5px]">
-            <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur">
-              <tr className="border-b border-border text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                <th className="px-3 py-2 font-medium">#</th>
-                <th className="px-3 py-2 font-medium">Recipient</th>
-                <th className="px-3 py-2 font-medium">Outcome</th>
-                <th className="px-3 py-2 text-right font-medium">Tx</th>
+            <thead className="sticky top-0 z-10 bg-background/80 backdrop-blur">
+              <tr className="border-b border-border text-[11px] text-foreground/55">
+                <th className="px-4 py-2.5 font-normal">#</th>
+                <th className="px-4 py-2.5 font-normal">Recipient</th>
+                <th className="px-4 py-2.5 font-normal">Outcome</th>
+                <th className="px-4 py-2.5 text-right font-normal">Tx</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border font-mono">
+            <tbody className="divide-y divide-border">
               {validRows.map((r) => {
                 const exec = execRows[r.row.rowNumber];
                 const isConfirmed = exec?.status === "confirmed";
@@ -662,55 +652,56 @@ function Receipt({
                   <tr
                     key={r.row.rowNumber}
                     className={cn(
-                      isFailed && "bg-destructive/5",
+                      isFailed && "bg-destructive/[0.06]",
+                      isConfirmed && "bg-primary/[0.025]",
                     )}
                   >
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground">
+                    <td className="px-4 py-3 font-mono text-[11px] text-foreground/55">
                       {r.row.rowNumber}
                     </td>
-                    <td className="px-3 py-2 text-foreground/90">
+                    <td className="px-4 py-3 font-mono text-foreground">
                       {shortAddr(r.wallet)}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-4 py-3">
                       {isConfirmed ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase tracking-[0.18em] text-primary">
                           <HugeiconsIcon
                             icon={CheckmarkCircle01Icon}
                             size={10}
-                            strokeWidth={2.5}
+                            strokeWidth={2}
                           />
-                          Confirmed
+                          confirmed
                         </span>
                       ) : isFailed ? (
                         <span
                           title={exec?.errorMessage}
-                          className="inline-flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-medium text-destructive"
+                          className="inline-flex items-center gap-1 rounded-full border border-destructive/40 bg-destructive/10 px-1.5 py-0.5 text-[10px] uppercase tracking-[0.18em] text-destructive"
                         >
                           <HugeiconsIcon
                             icon={Alert02Icon}
                             size={10}
-                            strokeWidth={2.5}
+                            strokeWidth={2}
                           />
-                          {truncate(exec?.errorMessage ?? "Failed", 40)}
+                          {truncate(exec?.errorMessage ?? "failed", 40)}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground">·</span>
+                        <span className="text-foreground/40">·</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-4 py-3 text-right">
                       {isConfirmed && exec?.payoutSignature ? (
                         <a
                           href={solscanTxUrl(exec.payoutSignature)}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 rounded-lg border border-border bg-card/60 px-2 py-1 text-[11px] text-foreground transition-colors hover:bg-secondary"
+                          className="inline-flex items-center gap-1 rounded-md border border-border bg-background/60 px-2 py-1 font-mono text-[11px] text-foreground transition-colors hover:bg-secondary/80"
                           title="Open payout on Solscan"
                         >
                           <span>{shortSig(exec.payoutSignature)}</span>
                           <span aria-hidden="true">↗</span>
                         </a>
                       ) : (
-                        <span className="text-muted-foreground">·</span>
+                        <span className="text-foreground/40">·</span>
                       )}
                     </td>
                   </tr>
@@ -764,7 +755,7 @@ function Receipt({
         </FancyButton>
         <Link
           href="/history"
-          className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card/60 px-3 py-2 text-[12.5px] text-foreground transition-colors hover:bg-secondary"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/60 px-3 py-2 text-[12.5px] text-foreground/85 transition-colors hover:border-primary/30 hover:text-foreground"
         >
           View in history
           <span aria-hidden="true">→</span>
@@ -822,19 +813,19 @@ function PreviewTable({
     activeStartedAt !== null ? Math.max(0, now - activeStartedAt) : 0;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border">
+    <div className="overflow-hidden rounded-[6px] border border-border bg-background/40">
       <div className="scrollbar-cloak max-h-[420px] overflow-x-auto overflow-y-auto">
         <table className="w-full min-w-[560px] text-left text-[12.5px]">
-          <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur">
-            <tr className="border-b border-border text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-              <th className="px-3 py-2 font-medium">#</th>
-              <th className="px-3 py-2 font-medium">Wallet</th>
-              <th className="px-3 py-2 text-right font-medium">Amount</th>
-              <th className="px-3 py-2 text-right font-medium">Net</th>
-              <th className="px-3 py-2 text-right font-medium">Status</th>
+          <thead className="sticky top-0 z-10 bg-background/80 backdrop-blur">
+            <tr className="border-b border-border text-[11px] text-foreground/55">
+              <th className="px-4 py-2.5 font-normal">#</th>
+              <th className="px-4 py-2.5 font-normal">Wallet</th>
+              <th className="px-4 py-2.5 text-right font-normal">Amount</th>
+              <th className="px-4 py-2.5 text-right font-normal">Net</th>
+              <th className="px-4 py-2.5 text-right font-normal">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border font-mono">
+          <tbody className="divide-y divide-border">
             {rows.map((r) => {
               const exec = execRows[r.row.rowNumber];
               const isActive = activeRowId === r.row.rowNumber;
@@ -844,52 +835,52 @@ function PreviewTable({
                   className={cn(
                     "transition-colors",
                     !r.isValid && "bg-destructive/5",
-                    isActive && "bg-primary/5",
-                    exec?.status === "confirmed" && "bg-primary/[0.04]",
-                    exec?.status === "failed" && "bg-destructive/10",
+                    isActive && "bg-primary/[0.04]",
+                    exec?.status === "confirmed" && "bg-primary/[0.03]",
+                    exec?.status === "failed" && "bg-destructive/[0.08]",
                   )}
                 >
-                  <td className="px-3 py-2 text-[11px] text-muted-foreground">
+                  <td className="px-4 py-3 font-mono text-[11px] text-foreground/55">
                     {r.row.rowNumber}
                   </td>
                   <td
                     className={cn(
-                      "px-3 py-2",
-                      r.walletIssue ? "text-destructive" : "text-foreground/90",
+                      "px-4 py-3 font-mono",
+                      r.walletIssue ? "text-destructive" : "text-foreground",
                     )}
                   >
                     {r.wallet ? shortAddr(r.wallet) : "·"}
                     {r.walletIssue && (
-                      <span className="ml-2 font-sans text-[10.5px] uppercase tracking-[0.1em]">
+                      <span className="ml-2 font-sans text-[10.5px] uppercase tracking-[0.16em]">
                         {describeRowIssue(r.walletIssue)}
                       </span>
                     )}
                   </td>
                   <td
                     className={cn(
-                      "px-3 py-2 text-right",
-                      r.amountIssue ? "text-destructive" : "text-foreground/90",
+                      "px-4 py-3 text-right tabular-nums",
+                      r.amountIssue ? "text-destructive" : "text-foreground",
                     )}
                   >
                     {r.amount || "·"}{" "}
-                    <span className="text-muted-foreground">{tokenId}</span>
+                    <span className="text-foreground/55">{tokenId}</span>
                     {r.amountIssue && (
-                      <div className="mt-0.5 font-sans text-[10.5px] uppercase tracking-[0.1em]">
+                      <div className="mt-0.5 font-sans text-[10.5px] uppercase tracking-[0.16em]">
                         {describeRowIssue(r.amountIssue)}
                       </div>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-4 py-3 text-right tabular-nums">
                     {r.isValid && r.netBaseUnits !== undefined ? (
-                      <span className="font-medium text-yellow-600 dark:text-yellow-400">
+                      <span className="text-primary">
                         {formatBaseUnits(r.netBaseUnits.toString(), decimals)}{" "}
-                        <span className="text-muted-foreground">{tokenId}</span>
+                        <span className="text-foreground/55">{tokenId}</span>
                       </span>
                     ) : (
-                      <span className="text-muted-foreground">·</span>
+                      <span className="text-foreground/40">·</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-4 py-3 text-right">
                     <RowStatus
                       validRow={r.isValid}
                       exec={exec}
@@ -917,8 +908,12 @@ function RowStatus({
 }) {
   if (!validRow) {
     return (
-      <span className="inline-flex size-5 items-center justify-center rounded-full bg-destructive/15 text-destructive">
-        <HugeiconsIcon icon={Alert02Icon} size={10} strokeWidth={2.5} />
+      <span
+        title="Invalid"
+        className="inline-flex items-center gap-1 rounded-full border border-destructive/40 bg-destructive/10 px-1.5 py-0.5 text-[10px] uppercase tracking-[0.18em] text-destructive"
+      >
+        <HugeiconsIcon icon={Alert02Icon} size={10} strokeWidth={2} />
+        invalid
       </span>
     );
   }
@@ -926,10 +921,11 @@ function RowStatus({
   if (!exec || exec.status === "pending") {
     return (
       <span
-        title="Pending"
-        className="inline-flex size-5 items-center justify-center rounded-full border border-border bg-background/40 text-muted-foreground"
+        title="Queued"
+        className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary/60 px-1.5 py-0.5 text-[10px] uppercase tracking-[0.18em] text-foreground/60"
       >
-        <span className="size-1.5 rounded-full bg-muted-foreground/60" />
+        <span className="size-1 rounded-full bg-foreground/45" />
+        queued
       </span>
     );
   }
@@ -938,9 +934,10 @@ function RowStatus({
     return (
       <span
         title="Confirmed"
-        className="inline-flex size-5 items-center justify-center rounded-full bg-primary/20 text-primary"
+        className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase tracking-[0.18em] text-primary"
       >
-        <HugeiconsIcon icon={CheckmarkCircle01Icon} size={10} strokeWidth={2.5} />
+        <HugeiconsIcon icon={CheckmarkCircle01Icon} size={10} strokeWidth={2} />
+        ok
       </span>
     );
   }
@@ -949,9 +946,10 @@ function RowStatus({
     return (
       <span
         title={exec.errorMessage ?? "Failed"}
-        className="inline-flex size-5 items-center justify-center rounded-full bg-destructive/20 text-destructive"
+        className="inline-flex items-center gap-1 rounded-full border border-destructive/40 bg-destructive/10 px-1.5 py-0.5 text-[10px] uppercase tracking-[0.18em] text-destructive"
       >
-        <HugeiconsIcon icon={Alert02Icon} size={10} strokeWidth={2.5} />
+        <HugeiconsIcon icon={Alert02Icon} size={10} strokeWidth={2} />
+        failed
       </span>
     );
   }
@@ -962,15 +960,19 @@ function RowStatus({
   return (
     <span
       title={exec.progress ?? statusLabel(exec.status)}
-      className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+      className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase tracking-[0.18em] text-primary"
     >
-      <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+      <span className="size-1 animate-pulse rounded-full bg-primary" />
       {phaseShort(exec.status)}
       {exec.proofPercent !== null && exec.status === "paying-proof" && (
-        <span className="font-mono">{Math.round(exec.proofPercent)}%</span>
+        <span className="font-mono normal-case tracking-normal">
+          {Math.round(exec.proofPercent)}%
+        </span>
       )}
       {elapsedSec !== null && (
-        <span className="font-mono text-primary/70">{elapsedSec}s</span>
+        <span className="font-mono normal-case tracking-normal text-primary/70">
+          {elapsedSec}s
+        </span>
       )}
     </span>
   );
@@ -1014,59 +1016,65 @@ function TotalsCard({
   const fmt = (raw: bigint) => formatBaseUnits(raw.toString(), tokenDecimals);
   const fmtSol = (lamports: bigint) => formatBaseUnits(lamports.toString(), 9);
   return (
-    <div className="grid gap-2 rounded-xl border border-border bg-background/40 p-4 text-[13px] sm:grid-cols-2">
-      <Row label="Recipients" value={`${totals.validCount}`} />
-      <Row label="Gross total" value={`${fmt(totals.totalBaseUnits)} ${tokenId}`} />
-      <Row
-        label="Variable fee"
-        hint="0.30%"
-        value={`${fmt(totals.totalVariableFeeBaseUnits)} ${tokenId}`}
-      />
-      <Row
-        label="Network fee"
-        hint={`${totals.validCount} × 0.005 SOL`}
-        value={`${fmtSol(totals.totalFixedFeeLamports)} SOL`}
-      />
-      <Row
-        label="Recipients receive"
-        value={`${fmt(totals.totalNetBaseUnits)} ${tokenId}`}
-        accent
-      />
+    <div className="rounded-[6px] border border-border bg-background/40">
+      <div className="grid grid-cols-2 divide-x divide-border border-b border-border md:grid-cols-3">
+        <Cell
+          label="Gross"
+          value={`${fmt(totals.totalBaseUnits)} ${tokenId}`}
+        />
+        <Cell
+          label="Fee"
+          value={`${fmt(totals.totalVariableFeeBaseUnits)} ${tokenId} + ${fmtSol(totals.totalFixedFeeLamports)} SOL`}
+          muted
+        />
+        <Cell
+          label="Net"
+          value={`${fmt(totals.totalNetBaseUnits)} ${tokenId}`}
+          accent
+        />
+      </div>
+      <div className="grid grid-cols-3 divide-x divide-border text-[12px]">
+        <FootCell label="Recipients" value={`${totals.validCount}`} />
+        <FootCell label="Variable" value="0.30%" />
+        <FootCell label="Network" value={`${totals.validCount} × 0.005 SOL`} />
+      </div>
     </div>
   );
 }
 
-function Row({
+function Cell({
   label,
-  hint,
   value,
+  muted,
   accent,
 }: {
   label: string;
-  hint?: string;
   value: string;
+  muted?: boolean;
   accent?: boolean;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 sm:contents">
-      <dt className="flex items-center gap-2 text-muted-foreground sm:py-1">
-        <span>{label}</span>
-        {hint && (
-          <span className="font-mono text-[11px] text-muted-foreground/70">
-            {hint}
-          </span>
-        )}
-      </dt>
-      <dd
+    <div className="flex flex-col gap-1 px-4 py-3.5">
+      <span className="text-[11.5px] text-foreground/55">{label}</span>
+      <span
         className={cn(
-          "font-mono sm:py-1 sm:text-right",
-          accent
-            ? "font-medium text-yellow-600 dark:text-yellow-400"
-            : "text-foreground/90",
+          "tabular-nums",
+          accent && "text-primary",
+          muted && "text-foreground/70",
+          !accent && !muted && "text-foreground",
         )}
       >
         {value}
-      </dd>
+      </span>
+    </div>
+  );
+}
+
+function FootCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2 px-4 py-2.5">
+      <span className="text-foreground/55">{label}</span>
+      <span className="font-mono text-foreground/85 tabular-nums">{value}</span>
     </div>
   );
 }

@@ -15,48 +15,38 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 border-b border-border px-4 pt-5 pb-4 sm:flex-row sm:items-end sm:justify-between sm:px-8">
-      <div className="min-w-0">
-        {eyebrow && (
-          <motion.p
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-            className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-primary/80"
-          >
+    <div className="flex flex-col gap-3 border-b border-border px-4 pt-7 pb-6 sm:flex-row sm:items-end sm:justify-between sm:px-8 sm:pt-8 sm:pb-7">
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: [0.22, 0.6, 0.2, 1] }}
+        className="min-w-0"
+      >
+        {eyebrow ? (
+          <p className="text-[13px] text-foreground/55">
             {eyebrow}
-          </motion.p>
-        )}
-        <motion.h1
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.04 }}
-          className="mt-1.5 text-[24px] font-semibold leading-tight tracking-tight text-foreground sm:text-[28px]"
-        >
+          </p>
+        ) : null}
+        <h1 className="mt-1 text-[26px] font-semibold leading-[1.08] tracking-[-0.02em] text-foreground sm:text-[30px]">
           {title}
-        </motion.h1>
-        {description && (
-          <motion.p
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.08 }}
-            className="mt-2 max-w-xl text-[13.5px] leading-5 text-muted-foreground"
-          >
+        </h1>
+        {description ? (
+          <p className="mt-3 max-w-[58ch] text-[14.5px] leading-7 text-foreground/65">
             {description}
-          </motion.p>
-        )}
-      </div>
+          </p>
+        ) : null}
+      </motion.div>
 
-      {actions && (
+      {actions ? (
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.12 }}
+          transition={{ duration: 0.3, delay: 0.05, ease: [0.22, 0.6, 0.2, 1] }}
           className="flex shrink-0 items-center gap-2"
         >
           {actions}
         </motion.div>
-      )}
+      ) : null}
     </div>
   );
 }
