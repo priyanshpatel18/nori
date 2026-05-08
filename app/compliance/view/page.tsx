@@ -16,8 +16,7 @@ import {
   toComplianceReport,
   type ComplianceReport,
 } from "@cloak.dev/sdk";
-import { useConnection } from "@solana/wallet-adapter-react";
-import { PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -136,7 +135,13 @@ function Content() {
     validatedNk.length > 0 &&
     validatedWallet !== "";
 
-  const { connection } = useConnection();
+  // The app-wide ConnectionProvider is `processed` for snappy fast-send
+  // confirmations, but scanTransactions calls getSignaturesForAddress and
+  // getParsedTransaction internally, which require at least `confirmed`.
+  const connection = React.useMemo(
+    () => new Connection(solanaConfig.rpcUrl, "confirmed"),
+    [],
+  );
   const [report, setReport] = React.useState<ComplianceReport | null>(null);
   const [scanning, setScanning] = React.useState(false);
   const [progress, setProgress] = React.useState<string | null>(null);
