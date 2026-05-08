@@ -195,7 +195,7 @@ export default function PayPage() {
     numericAmount > 0 && recipientReceives > 0 ? (
       <>
         Recipient gets{" "}
-        <span className="font-medium text-yellow-600 dark:text-yellow-400">
+        <span className="font-medium text-primary">
           ~{formatAmount(recipientReceives)} {token}
         </span>
       </>
@@ -272,7 +272,7 @@ export default function PayPage() {
         description="The transaction is shielded with a Groth16 proof generated in your browser. The chain never sees the recipient or the amount."
       />
 
-      <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 py-10 sm:px-8 lg:grid-cols-[1.4fr_1fr]">
+      <div className="mx-auto grid w-full max-w-6xl gap-6 px-6 py-10 md:px-8 lg:grid-cols-[1.4fr_1fr]">
         {fastSend.status === "success" && lastSend ? (
           <SuccessCard
             net={lastSend.net}
@@ -294,7 +294,7 @@ export default function PayPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-          className="flex min-w-0 flex-col gap-6 rounded-2xl border border-border bg-card/60 p-6 sm:p-8"
+          className="flex min-w-0 flex-col gap-6 rounded-[8px] border border-border bg-card/60 p-5 sm:p-6"
           onSubmit={(e) => {
             e.preventDefault();
             setAmountTouched(true);
@@ -383,7 +383,7 @@ export default function PayPage() {
                   ) : undefined
                 }
               />
-              <div className="flex items-center gap-1.5 rounded-xl border border-border bg-background/50 p-1">
+              <div className="flex items-center gap-0.5 rounded-md border border-border bg-background/60 p-0.5">
                 {TOKENS.map((t) => {
                   const isActive = token === t.id;
                   return (
@@ -392,17 +392,17 @@ export default function PayPage() {
                       type="button"
                       onClick={() => setToken(t.id)}
                       className={cn(
-                        "relative flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition-colors",
+                        "relative flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-[12px] font-medium transition-colors",
                         isActive
                           ? "text-foreground"
-                          : "text-muted-foreground hover:text-foreground",
+                          : "text-foreground/55 hover:text-foreground",
                       )}
                     >
                       {isActive && (
                         <motion.span
                           layoutId="pay-token-active"
                           aria-hidden="true"
-                          className="absolute inset-0 -z-0 rounded-lg bg-secondary"
+                          className="absolute inset-0 -z-0 rounded-sm bg-secondary/80"
                           transition={{
                             type: "spring",
                             stiffness: 380,
@@ -431,9 +431,9 @@ export default function PayPage() {
               }
             />
             {wallet.connected && shieldToken && (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-[11.5px] text-foreground/55">
                 Wallet:{" "}
-                <span className="font-mono text-foreground/80">
+                <span className="font-mono text-foreground/85">
                   {formatBalance(walletTokenBalance, shieldToken.decimals)} {token}
                 </span>
               </p>
@@ -464,7 +464,7 @@ export default function PayPage() {
             </FancyButton>
 
             {!tokenSupported && (
-              <p className="text-[12px] text-muted-foreground">
+              <p className="text-[12px] text-foreground/55">
                 {token} is not available on {solanaConfig.cluster}.
               </p>
             )}
@@ -488,8 +488,8 @@ export default function PayPage() {
           transition={{ duration: 0.32, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
           className="hidden flex-col gap-4 md:flex"
         >
-          <div className="rounded-2xl border border-border bg-card/60 p-6">
-            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          <div className="rounded-[8px] border border-border bg-card/60 p-5">
+            <p className="text-[13px] text-foreground/55">
               Summary
             </p>
 
@@ -512,13 +512,13 @@ export default function PayPage() {
               />
             </dl>
             {token !== "SOL" && (
-              <p className="mt-3 text-[11.5px] text-muted-foreground">
+              <p className="mt-3 text-[11.5px] text-foreground/55">
                 Network fee is paid separately from your SOL balance.
               </p>
             )}
           </div>
 
-          <ul className="hidden flex-col gap-2 rounded-2xl border border-border bg-card/40 p-5 sm:flex">
+          <ul className="hidden flex-col gap-2 rounded-[8px] border border-border bg-background/40 p-5 sm:flex">
             {[
               { Icon: ShieldIcon, text: "Proof generated locally in your browser." },
               {
@@ -535,7 +535,7 @@ export default function PayPage() {
                 initial={{ opacity: 0, x: -6 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.16 + i * 0.05, duration: 0.25 }}
-                className="flex items-start gap-2.5 text-[12.5px] leading-5 text-muted-foreground"
+                className="flex items-start gap-2.5 text-[13px] leading-6 text-foreground/65"
               >
                 <it.Icon size={14} className="mt-0.5 text-primary" />
                 <span>{it.text}</span>
@@ -548,7 +548,7 @@ export default function PayPage() {
       <Sheet open={confirmOpen} onOpenChange={setConfirmOpen}>
         <SheetContent
           side="bottom"
-          className="rounded-t-2xl border-t border-border pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+          className="rounded-t-[12px] border-t border-border pb-[max(1.25rem,env(safe-area-inset-bottom))]"
         >
           <SheetHeader>
             <SheetTitle>Confirm payment</SheetTitle>
@@ -557,7 +557,7 @@ export default function PayPage() {
             </SheetDescription>
           </SheetHeader>
           <div className="flex flex-col gap-4 px-6 pb-2">
-            <dl className="flex flex-col divide-y divide-border rounded-xl border border-border bg-background/40 px-3 text-[13.5px]">
+            <dl className="flex flex-col divide-y divide-border rounded-[6px] border border-border bg-background/40 px-3 text-[13.5px]">
               <Row
                 label="You send"
                 value={`${formatAmount(numericAmount)} ${token}`}
@@ -576,7 +576,7 @@ export default function PayPage() {
               />
             </dl>
             <div className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              <span className="text-[13px] text-foreground/55">
                 To
               </span>
               <span className="break-all font-mono text-[12px] text-foreground/80">
@@ -641,7 +641,7 @@ function FieldFootnote({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.16 }}
-            className="text-[11.5px] text-muted-foreground"
+            className="text-[11.5px] text-foreground/55"
           >
             {hint}
           </motion.p>
@@ -671,7 +671,7 @@ function SuccessCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-6 rounded-2xl border border-border bg-card/60 p-6 sm:p-8"
+      className="flex flex-col gap-6 rounded-[8px] border border-border bg-card/60 p-5 sm:p-6"
     >
       <div className="flex items-start gap-3">
         <motion.span
@@ -682,34 +682,34 @@ function SuccessCard({
             ease: [0.22, 1, 0.36, 1],
             delay: 0.05,
           }}
-          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"
+          className="flex size-8 shrink-0 items-center justify-center rounded-full border border-primary/40 bg-primary/10 text-primary"
           aria-hidden="true"
         >
           <HugeiconsIcon
             icon={CheckmarkCircle01Icon}
-            size={18}
-            strokeWidth={2.2}
+            size={16}
+            strokeWidth={2}
           />
         </motion.span>
         <div className="flex flex-col">
-          <h2 className="text-[18px] font-medium tracking-tight text-foreground">
+          <h2 className="text-[17px] font-medium tracking-tight text-foreground">
             Sent privately
           </h2>
-          <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+          <p className="mt-1 text-[13.5px] leading-6 text-foreground/65">
             Recipient received{" "}
-            <span className="font-medium text-yellow-600 dark:text-yellow-400">
+            <span className="text-primary">
               {formatAmount(net)} {token}
             </span>
             . The chain shows the payment from the Cloak shield-pool, not your
             wallet.
           </p>
-          <p className="mt-1 font-mono text-[11.5px] text-muted-foreground">
+          <p className="mt-1 font-mono text-[11.5px] text-foreground/55">
             to {shortAddress(recipient)}
           </p>
         </div>
       </div>
 
-      <div className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-background/40">
+      <div className="flex flex-col divide-y divide-border overflow-hidden rounded-[6px] border border-border bg-background/40">
         <SuccessTxRow
           label="Shield tx"
           hint="Your deposit into the pool"
@@ -751,21 +751,21 @@ function SuccessTxRow({
         <span className="text-[12.5px] font-medium text-foreground">
           {label}
         </span>
-        <span className="text-[11px] text-muted-foreground">{hint}</span>
+        <span className="text-[11.5px] text-foreground/55">{hint}</span>
       </div>
       {signature ? (
         <a
           href={solscanTxUrl(signature)}
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-1.5 rounded-lg border border-border bg-card/60 px-2.5 py-1 font-mono text-[11.5px] text-foreground transition-colors hover:bg-secondary"
+          className="flex items-center gap-1.5 rounded-md border border-border bg-background/60 px-2.5 py-1 font-mono text-[11.5px] text-foreground transition-colors hover:border-primary/30"
         >
           <span>{shortSig(signature)}</span>
           <span aria-hidden="true">↗</span>
           <span className="sr-only">Open on Solscan</span>
         </a>
       ) : (
-        <span className="font-mono text-[11.5px] text-muted-foreground">·</span>
+        <span className="font-mono text-[11.5px] text-foreground/40">·</span>
       )}
     </div>
   );
@@ -803,22 +803,22 @@ function Row({
 }) {
   return (
     <div className="flex items-center justify-between py-2.5">
-      <dt className="flex items-center gap-2 text-muted-foreground">
+      <dt className="flex items-center gap-2 text-foreground/55">
         <span>{label}</span>
         {hint && (
-          <span className="font-mono text-[11px] text-muted-foreground/70">
+          <span className="font-mono text-[11px] text-foreground/40">
             {hint}
           </span>
         )}
       </dt>
       <dd
         className={cn(
-          "font-mono",
+          "font-mono tabular-nums",
           accent
-            ? "font-medium text-yellow-600 dark:text-yellow-400"
+            ? "text-primary"
             : emphasis
               ? "text-foreground"
-              : "text-foreground/80",
+              : "text-foreground/85",
         )}
       >
         {value}
@@ -868,9 +868,9 @@ function TransactionProgress({
           role="status"
           aria-live="polite"
         >
-          <div className="flex items-center justify-between gap-2 text-[11.5px] text-muted-foreground">
+          <div className="flex items-center justify-between gap-2 text-[11.5px] text-foreground/65">
             <span className="min-w-0 flex-1 truncate">{message}</span>
-            <span className="shrink-0 font-mono tabular-nums text-foreground/80">
+            <span className="shrink-0 font-mono tabular-nums text-foreground/85">
               {display}%
             </span>
           </div>

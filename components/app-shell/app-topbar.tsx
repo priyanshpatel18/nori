@@ -63,7 +63,7 @@ export function AppTopbar() {
           <span className="truncate text-[14px] font-medium tracking-tight text-foreground">
             {meta.title}
           </span>
-          <span className="hidden truncate text-[12px] text-muted-foreground sm:block">
+          <span className="hidden truncate text-[12px] text-foreground/55 sm:block">
             {meta.subtitle}
           </span>
         </motion.div>
