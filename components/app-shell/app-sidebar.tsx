@@ -10,6 +10,7 @@ import {
   ComplianceIcon,
   PayrollIcon,
   SendIcon,
+  SettingsIcon,
   ShieldIcon,
   SwapTokensIcon,
   TeamIcon,
@@ -90,6 +91,12 @@ const NAV: NavItem[] = [
     label: "Compliance",
     description: "Viewing keys and signed reports.",
     icon: ComplianceIcon,
+  },
+  {
+    href: "/settings",
+    label: "Settings",
+    description: "Cluster, demo mode, and the devnet faucet.",
+    icon: SettingsIcon,
   },
 ];
 

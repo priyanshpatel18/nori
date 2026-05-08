@@ -35,25 +35,50 @@ function isWsUrl(value: string | undefined): value is string {
 }
 
 const rawCluster = clean(process.env.NEXT_PUBLIC_SOLANA_CLUSTER) ?? "devnet";
-const cluster = VALID_CLUSTERS.find((c) => c === rawCluster);
-if (!cluster) {
+const envCluster = VALID_CLUSTERS.find((c) => c === rawCluster);
+if (!envCluster) {
   throw new Error(
     `Invalid NEXT_PUBLIC_SOLANA_CLUSTER "${rawCluster}". Expected one of: ${VALID_CLUSTERS.join(", ")}.`,
   );
 }
 
+// Client-side cluster override (demo mode). Applied at module init so all
+// downstream singletons (rpc, cloakConfig, token registry) see a single,
+// consistent cluster for the lifetime of this bundle. The override is set
+// from the Settings UI together with a hard reload, so this read happens
+// once per page load. SSR ignores localStorage and falls back to the env
+// value, so cluster-dependent UI rendered server-side is gated on mount.
+const CLUSTER_OVERRIDE_KEY = "cloak.clusterOverride";
+function readClientOverride(): SolanaCluster | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(CLUSTER_OVERRIDE_KEY);
+    return VALID_CLUSTERS.find((c) => c === raw) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+const override = readClientOverride();
+const cluster: SolanaCluster = override ?? envCluster;
+
 const envRpcUrl = clean(process.env.NEXT_PUBLIC_SOLANA_RPC_URL);
 const envWsUrl = clean(process.env.NEXT_PUBLIC_SOLANA_WS_URL);
 
-const rpcUrl = isHttpUrl(envRpcUrl) ? envRpcUrl : DEFAULT_RPC[cluster];
-const wsUrl = isWsUrl(envWsUrl) ? envWsUrl : DEFAULT_WS[cluster];
+// When the cluster comes from an override, ignore env-provided URLs (they
+// were configured for a different cluster) and use the public defaults.
+const useEnvUrls = !override;
+const rpcUrl =
+  useEnvUrls && isHttpUrl(envRpcUrl) ? envRpcUrl : DEFAULT_RPC[cluster];
+const wsUrl =
+  useEnvUrls && isWsUrl(envWsUrl) ? envWsUrl : DEFAULT_WS[cluster];
 
-if (envRpcUrl && envRpcUrl !== rpcUrl) {
+if (useEnvUrls && envRpcUrl && envRpcUrl !== rpcUrl) {
   console.warn(
     `Ignoring NEXT_PUBLIC_SOLANA_RPC_URL "${envRpcUrl}": must start with http:// or https://. Using ${rpcUrl}.`,
   );
 }
-if (envWsUrl && envWsUrl !== wsUrl) {
+if (useEnvUrls && envWsUrl && envWsUrl !== wsUrl) {
   console.warn(
     `Ignoring NEXT_PUBLIC_SOLANA_WS_URL "${envWsUrl}": must start with ws:// or wss://. Using ${wsUrl}.`,
   );
