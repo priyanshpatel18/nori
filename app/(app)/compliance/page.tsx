@@ -106,19 +106,32 @@ export default function CompliancePage() {
   }, [scan, fromMs, toMs, fromDate, toDate]);
 
   const inRangeTransactions = React.useMemo<ReceivedTransaction[]>(() => {
-    if (!scan) return [];
-    if (
-      fromMs === Number.NEGATIVE_INFINITY &&
-      toMs === Number.POSITIVE_INFINITY
-    ) {
-      return [...scan.report.transactions].sort(
-        (a, b) => b.timestamp - a.timestamp,
-      );
-    }
-    return scan.report.transactions
-      .filter((tx) => tx.timestamp >= fromMs && tx.timestamp < toMs)
-      .sort((a, b) => b.timestamp - a.timestamp);
-  }, [scan, fromMs, toMs]);
+    const scanned = scan
+      ? scan.report.transactions.filter(
+          (tx) => tx.timestamp >= fromMs && tx.timestamp < toMs,
+        )
+      : [];
+
+    // Outbound private transfers are invisible to the on-chain scan (relay-
+    // submitted, no wallet sig), so the local payment-history records are the
+    // only place they exist. Project them into the same shape and merge.
+    const sendRows = filteredRecords.map(paymentRecordToDisplayTx);
+
+    // The wallet-anchored scan does pick up the deposit phase of a Pay/Payroll
+    // (the wallet signs the deposit). When a local send record references that
+    // same depositSignature, keep the richer local row (it knows the
+    // recipient and mint) and drop the bare scan deposit.
+    const sendDepositSigs = new Set(
+      filteredRecords.map((r) => r.depositSignature).filter(Boolean),
+    );
+    const dedupedScanned = scanned.filter(
+      (tx) => !(tx.txType === "deposit" && tx.signature && sendDepositSigs.has(tx.signature)),
+    );
+
+    return [...sendRows, ...dedupedScanned].sort(
+      (a, b) => b.timestamp - a.timestamp,
+    );
+  }, [scan, fromMs, toMs, filteredRecords]);
 
   // Issued viewing keys (live, persisted per wallet/cluster).
   const { keys: issuedKeys, issuer } = useIssuedKeys();
@@ -161,24 +174,37 @@ export default function CompliancePage() {
         wallet: issuer,
         fromDate,
         toDate,
+        sentRecords: filteredRecords,
       });
       return { record, link };
     },
-    [issuer, fromDate, toDate, ensureNkHex],
+    [issuer, fromDate, toDate, ensureNkHex, filteredRecords],
   );
 
   const buildLinkForRecord = React.useCallback(
     async (record: IssuedKey): Promise<string | null> => {
       const nkHex = await ensureNkHex();
       if (!nkHex) return null;
+      // Re-filter records against the issued key's own range (which may differ
+      // from whatever the user has the date pickers set to right now).
+      const recFromMs = record.fromDate
+        ? Date.parse(record.fromDate)
+        : Number.NEGATIVE_INFINITY;
+      const recToMs = record.toDate
+        ? Date.parse(record.toDate) + 86_400_000
+        : Number.POSITIVE_INFINITY;
+      const sentRecords = records.filter(
+        (r) => r.timestamp >= recFromMs && r.timestamp < recToMs,
+      );
       return buildAuditorUrl({
         nkHex,
         wallet: record.issuer,
         fromDate: record.fromDate,
         toDate: record.toDate,
+        sentRecords,
       });
     },
-    [ensureNkHex],
+    [ensureNkHex, records],
   );
 
   const handleRevokeKey = React.useCallback(
@@ -822,7 +848,7 @@ function TransactionRow({
   const sigShort = tx.signature
     ? `${tx.signature.slice(0, 4)}…${tx.signature.slice(-4)}`
     : `${tx.commitment.slice(0, 4)}…${tx.commitment.slice(-4)}`;
-  const isDeposit = tx.txType === "deposit";
+  const isOutgoing = isOutgoingTxType(tx.txType);
 
   return (
     <motion.li
@@ -843,13 +869,13 @@ function TransactionRow({
             <span
               className={cn(
                 "mr-1.5 font-mono text-[9.5px] uppercase tracking-[0.16em]",
-                isDeposit ? "text-foreground/70" : "text-emerald-400",
+                isOutgoing ? "text-foreground/70" : "text-emerald-400",
               )}
             >
               {txTypeLabel(tx.txType)}
             </span>
             <span className="font-mono text-foreground">
-              {isDeposit ? "−" : "+"}
+              {isOutgoing ? "−" : "+"}
               {amount}
               {symbol ? (
                 <span className="ml-1 text-foreground/55">{symbol}</span>
@@ -881,9 +907,68 @@ function txTypeLabel(txType: string): string {
       return "Transfer";
     case "swap":
       return "Swap";
+    case "send-transfer":
+      return "Sent";
+    case "send-swap":
+      return "Swap (sent)";
     default:
       return txType || "Unknown";
   }
+}
+
+function isOutgoingTxType(txType: string): boolean {
+  return (
+    txType === "deposit" ||
+    txType === "send-transfer" ||
+    txType === "send-swap"
+  );
+}
+
+// Project a local PaymentRecord into the same shape the rest of the
+// dashboard renders. Send rows are tagged with synthetic txTypes so the
+// row UI can render them as outgoing without colliding with the SDK's
+// "transfer"/"swap" semantics (which mean *received* in scan results).
+function paymentRecordToDisplayTx(r: PaymentRecord): ReceivedTransaction {
+  const swap = r.swap;
+  if (swap) {
+    return {
+      txType: "send-swap",
+      amount: numberFromRaw(r.amountRaw),
+      fee: Math.max(0, numberFromRaw(r.amountRaw) - numberFromRaw(r.netRaw)),
+      netAmount: numberFromRaw(r.netRaw),
+      runningBalance: 0,
+      timestamp: r.timestamp,
+      recipient: r.recipient,
+      commitment: `pay-${r.id}`,
+      signature: swap.settlementSignature ?? swap.swapSignature,
+      mint: r.mint,
+      decimals: r.decimals,
+      symbol: r.token,
+      outputMint: swap.outputMint,
+      outputSymbol: swap.outputToken,
+    };
+  }
+  return {
+    txType: "send-transfer",
+    amount: numberFromRaw(r.amountRaw),
+    fee: Math.max(0, numberFromRaw(r.amountRaw) - numberFromRaw(r.netRaw)),
+    netAmount: numberFromRaw(r.netRaw),
+    runningBalance: 0,
+    timestamp: r.timestamp,
+    recipient: r.recipient,
+    commitment: `pay-${r.id}`,
+    signature: r.depositSignature || r.withdrawSignature,
+    mint: r.mint,
+    decimals: r.decimals,
+    symbol: r.token,
+  };
+}
+
+function numberFromRaw(raw: string): number {
+  // Base-unit string (already an integer); Number() is lossy beyond 2^53 but
+  // matches how the SDK already returns these values.
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
 }
 
 function formatTxDate(ms: number): string {
@@ -947,7 +1032,7 @@ function TxDetailBody({ tx }: { tx: ReceivedTransaction }) {
           {txTypeLabel(tx.txType)}
         </p>
         <SheetTitle className="font-mono text-[18px] tabular-nums text-foreground">
-          {tx.txType === "deposit" ? "−" : "+"}
+          {isOutgoingTxType(tx.txType) ? "−" : "+"}
           {netAmount}
           {symbol ? (
             <span className="ml-1.5 text-[14px] text-foreground/55">

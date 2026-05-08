@@ -28,6 +28,10 @@ import { FancyButton } from "@/components/ui/fancy-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cloakConfig } from "@/lib/cloak/config";
+import {
+  decodeSentHistory,
+  type AuditorSentEntry,
+} from "@/lib/cloak/viewing-keys";
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanTxUrl } from "@/lib/solana/explorer";
 import { cn } from "@/lib/utils";
@@ -201,6 +205,27 @@ function Content() {
     return () => inflight.current?.abort();
   }, []);
 
+  // Outbound private transfers ride in the URL hash fragment because the
+  // wallet-anchored on-chain scan can't see them (relay-submitted, no wallet
+  // signature). The hash never reaches the server, only the auditor's browser.
+  const [embeddedSent, setEmbeddedSent] = React.useState<AuditorSentEntry[]>(
+    [],
+  );
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = window.location.hash.replace(/^#/, "");
+    if (!raw) return;
+    const params = new URLSearchParams(raw);
+    const encoded = params.get("h");
+    if (!encoded) return;
+    setEmbeddedSent(decodeSentHistory(encoded));
+  }, []);
+
+  const mergedReport = React.useMemo(
+    () => mergeSentIntoReport(report, embeddedSent, dates.fromMs, dates.toMs),
+    [report, embeddedSent, dates],
+  );
+
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-10 sm:px-8">
       <motion.section
@@ -334,7 +359,7 @@ function Content() {
         </form>
       </motion.section>
 
-      {report && <ReportPanel report={report} />}
+      {mergedReport && <ReportPanel report={mergedReport} />}
 
       <p className="flex items-center gap-2 text-[11.5px] text-muted-foreground">
         <HugeiconsIcon icon={LockIcon} size={12} strokeWidth={2} />
@@ -416,20 +441,43 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function TxTypeBadge({ type }: { type: string }) {
+  const isSend = type === "send-transfer" || type === "send-swap";
   const isDeposit = /deposit/i.test(type);
-  const isWithdraw = /withdraw|swap/i.test(type);
-  const Icon = isDeposit ? ArrowDownLeft01Icon : ArrowUpRight01Icon;
-  const tone = isDeposit
-    ? "text-primary"
-    : isWithdraw
+  const isOutgoing = isDeposit || isSend;
+  const Icon = isOutgoing ? ArrowUpRight01Icon : ArrowDownLeft01Icon;
+  const label = txLabel(type);
+  const tone = isSend
+    ? "text-foreground"
+    : isDeposit
       ? "text-foreground"
-      : "text-muted-foreground";
+      : "text-primary";
   return (
     <span className={cn("flex items-center gap-1.5", tone)}>
       <HugeiconsIcon icon={Icon} size={13} strokeWidth={2} />
-      <span className="text-[12.5px] capitalize">{type.toLowerCase()}</span>
+      <span className="text-[12.5px]">{label}</span>
     </span>
   );
+}
+
+function txLabel(type: string): string {
+  switch (type) {
+    case "deposit":
+      return "Deposit";
+    case "withdraw":
+      return "Withdraw";
+    case "transfer":
+      return "Transfer";
+    case "swap":
+      return "Swap";
+    case "send-transfer":
+      return "Sent";
+    case "send-swap":
+      return "Swap (sent)";
+    default:
+      return type
+        ? type.charAt(0).toUpperCase() + type.slice(1).toLowerCase()
+        : "Unknown";
+  }
 }
 
 function Counterparty({
@@ -492,4 +540,103 @@ function formatTime(ms: number): string {
 function truncate(s: string): string {
   if (s.length <= 12) return s;
   return `${s.slice(0, 6)}…${s.slice(-4)}`;
+}
+
+type ReportTransaction = ComplianceReport["transactions"][number];
+
+function baseUnitsToNumber(raw: string, decimals: number): number {
+  // The SDK reports amounts as JS numbers in base units. Mirror that so the
+  // existing `formatNumber(tx.amount)` rendering treats sent rows the same as
+  // scanned rows.
+  try {
+    const n = BigInt(raw);
+    const base = BigInt(10) ** BigInt(decimals);
+    const whole = Number(n / base);
+    const frac = Number(n % base) / Number(base);
+    return whole + frac;
+  } catch {
+    const num = Number(raw);
+    return Number.isFinite(num) ? num / 10 ** decimals : 0;
+  }
+}
+
+function sentEntryToTransaction(e: AuditorSentEntry): ReportTransaction {
+  const amount = baseUnitsToNumber(e.amountRaw, e.decimals);
+  const net = baseUnitsToNumber(e.netRaw, e.decimals);
+  // Tag with synthetic types so the badge can render them as outgoing,
+  // distinct from the SDK's "transfer"/"swap" which mean *received*.
+  const txType = e.txType === "swap" ? "send-swap" : "send-transfer";
+  return {
+    txType,
+    amount,
+    fee: Math.max(0, amount - net),
+    netAmount: net,
+    runningBalance: 0,
+    timestamp: e.timestamp,
+    recipient: e.recipient,
+    commitment: `pay-${e.id}`,
+    signature: e.signature,
+    mint: e.mint,
+    decimals: e.decimals,
+    symbol: e.symbol,
+    outputMint: e.outputMint,
+    outputSymbol: e.outputSymbol,
+  };
+}
+
+function mergeSentIntoReport(
+  report: ComplianceReport | null,
+  sent: AuditorSentEntry[],
+  fromMs: number | null,
+  toMs: number | null,
+): ComplianceReport | null {
+  if (!report) return null;
+  if (sent.length === 0) return report;
+
+  const lo = fromMs ?? Number.NEGATIVE_INFINITY;
+  const hi = toMs !== null ? toMs + 86_400_000 : Number.POSITIVE_INFINITY;
+  const inRange = sent.filter((e) => e.timestamp >= lo && e.timestamp < hi);
+  if (inRange.length === 0) return report;
+
+  const seen = new Set<string>();
+  for (const tx of report.transactions) {
+    const key = tx.signature ?? tx.commitment;
+    if (key) seen.add(key);
+  }
+  const fresh = inRange
+    .map(sentEntryToTransaction)
+    .filter((tx) => {
+      const key = tx.signature ?? tx.commitment;
+      return key ? !seen.has(key) : true;
+    });
+
+  const merged = [...fresh, ...report.transactions].sort(
+    (a, b) => b.timestamp - a.timestamp,
+  );
+
+  let totalDeposits = 0;
+  let totalWithdrawals = 0;
+  let totalFees = 0;
+  for (const tx of merged) {
+    if (tx.txType === "deposit") {
+      totalDeposits += tx.amount;
+    } else {
+      totalWithdrawals += tx.amount;
+      totalFees += tx.fee;
+    }
+  }
+
+  return {
+    ...report,
+    transactions: merged,
+    summary: {
+      ...report.summary,
+      totalDeposits,
+      totalWithdrawals,
+      totalFees,
+      netChange: totalDeposits - totalWithdrawals,
+      transactionCount: merged.length,
+      finalBalance: totalDeposits - totalWithdrawals,
+    },
+  };
 }

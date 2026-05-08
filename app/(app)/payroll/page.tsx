@@ -108,7 +108,7 @@ export default function PayrollPage() {
         description="Upload a CSV. One signature covers the whole batch, every recipient paid privately from the shielded pool."
       />
 
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10 md:px-8">
+      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-6 px-6 py-6 md:px-8 md:py-8">
         <DueBanner
           total={due.total}
           groups={due.groups}
@@ -359,9 +359,9 @@ function ParsedSummary({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
       transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-5 rounded-[8px] border border-border bg-card/60 p-5 sm:p-6"
+      className="flex min-h-0 flex-1 flex-col gap-5 rounded-[8px] border border-border bg-card/60 p-5 sm:p-6"
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 flex-col">
           <p className="text-[13px] text-foreground/55">Roster</p>
           <p className="mt-1 truncate font-mono text-[13.5px] text-foreground">
@@ -502,7 +502,7 @@ function ParsedSummary({
       )}
 
       {state.kind === "ready" && validated.length > 0 && !batch.summary && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <FancyButton
             type="button"
             variant="primary"
@@ -578,9 +578,9 @@ function Receipt({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-5 rounded-[8px] border border-border bg-background/40 p-5 sm:p-6"
+      className="flex min-h-0 flex-1 flex-col gap-5 rounded-[8px] border border-border bg-background/40 p-5 sm:p-6"
     >
-      <div className="flex items-start gap-3">
+      <div className="flex shrink-0 items-start gap-3">
         <motion.span
           initial={{ scale: 0.6, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -634,8 +634,8 @@ function Receipt({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[6px] border border-border bg-background/40">
-        <div className="scrollbar-cloak max-h-[360px] overflow-x-auto overflow-y-auto">
+      <div className="flex max-h-[360px] min-h-0 flex-1 flex-col overflow-hidden rounded-[6px] border border-border bg-background/40">
+        <div className="scrollbar-cloak min-h-0 flex-1 overflow-x-auto overflow-y-auto">
           <table className="w-full min-w-[480px] text-left text-[12.5px]">
             <thead className="sticky top-0 z-10 bg-background/80 backdrop-blur">
               <tr className="border-b border-border text-[11px] text-foreground/55">
@@ -714,7 +714,7 @@ function Receipt({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         {onRetryFailed && (
           <FancyButton
             type="button"
@@ -815,8 +815,8 @@ function PreviewTable({
     activeStartedAt !== null ? Math.max(0, now - activeStartedAt) : 0;
 
   return (
-    <div className="overflow-hidden rounded-[6px] border border-border bg-background/40">
-      <div className="scrollbar-cloak max-h-[420px] overflow-x-auto overflow-y-auto">
+    <div className="flex max-h-[360px] min-h-0 flex-1 flex-col overflow-hidden rounded-[6px] border border-border bg-background/40">
+      <div className="scrollbar-cloak min-h-0 flex-1 overflow-x-auto overflow-y-auto">
         <table className="w-full min-w-[560px] text-left text-[12.5px]">
           <thead className="sticky top-0 z-10 bg-background/80 backdrop-blur">
             <tr className="border-b border-border text-[11px] text-foreground/55">
@@ -1018,7 +1018,7 @@ function TotalsCard({
   const fmt = (raw: bigint) => formatBaseUnits(raw.toString(), tokenDecimals);
   const fmtSol = (lamports: bigint) => formatBaseUnits(lamports.toString(), 9);
   return (
-    <div className="rounded-[6px] border border-border bg-background/40">
+    <div className="shrink-0 rounded-[6px] border border-border bg-background/40">
       <div className="grid grid-cols-2 divide-x divide-border border-b border-border md:grid-cols-3">
         <Cell
           label="Gross"

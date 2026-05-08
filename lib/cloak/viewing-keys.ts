@@ -1,5 +1,7 @@
 import type { SolanaCluster } from "@/lib/solana/config";
 
+import type { PaymentRecord } from "./payment-history";
+
 const STORAGE_PREFIX = "cloak:viewing-keys:v1";
 const MAX_KEYS = 50;
 
@@ -150,24 +152,136 @@ export function formatKeyRange(k: IssuedKey): string {
 }
 
 /**
+ * Compact projection of a PaymentRecord for embedding in the auditor URL.
+ * Outbound shield-to-shield transfers are invisible to the on-chain scan
+ * (the relay submits them, the issuer's wallet never signs), so the auditor
+ * needs them shipped out-of-band. They ride in the URL hash fragment, which
+ * never reaches any server.
+ */
+export type AuditorSentEntry = {
+  id: string;
+  recipient: string;
+  mint: string;
+  symbol: string;
+  decimals: number;
+  amountRaw: string;
+  netRaw: string;
+  signature: string;
+  timestamp: number;
+  txType: "transfer" | "swap";
+  outputMint?: string;
+  outputSymbol?: string;
+  outputDecimals?: number;
+  outAmountRaw?: string;
+};
+
+export function paymentToSentEntry(r: PaymentRecord): AuditorSentEntry {
+  const swap = r.swap;
+  return {
+    id: r.id,
+    recipient: r.recipient,
+    mint: r.mint,
+    symbol: r.token,
+    decimals: r.decimals,
+    amountRaw: r.amountRaw,
+    netRaw: r.netRaw,
+    signature: swap
+      ? (swap.settlementSignature ?? swap.swapSignature)
+      : r.withdrawSignature,
+    timestamp: r.timestamp,
+    txType: swap ? "swap" : "transfer",
+    outputMint: swap?.outputMint,
+    outputSymbol: swap?.outputToken,
+    outputDecimals: swap?.outputDecimals,
+    outAmountRaw: swap?.outAmountRaw,
+  };
+}
+
+function toBase64Url(bytes: Uint8Array): string {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  if (typeof btoa === "function") {
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  return Buffer.from(bin, "binary")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+function fromBase64Url(encoded: string): Uint8Array {
+  const padded = encoded.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4));
+  const bin =
+    typeof atob === "function"
+      ? atob(padded + pad)
+      : Buffer.from(padded + pad, "base64").toString("binary");
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+export function encodeSentHistory(entries: AuditorSentEntry[]): string {
+  const json = JSON.stringify(entries);
+  return toBase64Url(new TextEncoder().encode(json));
+}
+
+export function decodeSentHistory(encoded: string): AuditorSentEntry[] {
+  try {
+    const bytes = fromBase64Url(encoded);
+    const json = new TextDecoder().decode(bytes);
+    const parsed = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isAuditorSentEntry);
+  } catch {
+    return [];
+  }
+}
+
+function isAuditorSentEntry(value: unknown): value is AuditorSentEntry {
+  if (!value || typeof value !== "object") return false;
+  const r = value as Record<string, unknown>;
+  return (
+    typeof r.id === "string" &&
+    typeof r.recipient === "string" &&
+    typeof r.mint === "string" &&
+    typeof r.symbol === "string" &&
+    typeof r.decimals === "number" &&
+    typeof r.amountRaw === "string" &&
+    typeof r.netRaw === "string" &&
+    typeof r.signature === "string" &&
+    typeof r.timestamp === "number" &&
+    (r.txType === "transfer" || r.txType === "swap")
+  );
+}
+
+/**
  * Build the URL an auditor opens to reconstruct the issuer's ledger.
  * `nkHex` is the wire-format viewing key, treat like a password. Date params
  * are passed through as YYYY-MM-DD strings, the auditor view interprets empty
- * sides as open-ended.
+ * sides as open-ended. `sentRecords` ride in the URL hash so outbound private
+ * transfers (which the on-chain scan can't see) reach the auditor without
+ * touching any server.
  */
 export function buildAuditorUrl(opts: {
   nkHex: string;
   wallet: string | null;
   fromDate?: string;
   toDate?: string;
+  sentRecords?: PaymentRecord[];
 }): string {
   const params = new URLSearchParams({ nk: opts.nkHex });
   if (opts.wallet) params.set("wallet", opts.wallet);
   if (opts.fromDate) params.set("from", opts.fromDate);
   if (opts.toDate) params.set("to", opts.toDate);
-  const path = `/compliance/view?${params.toString()}`;
-  if (typeof window === "undefined") return path;
-  return `${window.location.origin}${path}`;
+  let path = `/compliance/view?${params.toString()}`;
+  if (opts.sentRecords && opts.sentRecords.length > 0) {
+    const entries = opts.sentRecords.map(paymentToSentEntry);
+    path += `#h=${encodeSentHistory(entries)}`;
+  }
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  return `${origin}${path}`;
 }
 
 function isIssuedKey(value: unknown): value is IssuedKey {
