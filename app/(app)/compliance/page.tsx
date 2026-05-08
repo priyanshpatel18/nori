@@ -55,6 +55,7 @@ import {
 } from "@/lib/cloak/viewing-keys";
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanAddressUrl, solscanTxUrl } from "@/lib/solana/explorer";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 export default function CompliancePage() {
@@ -342,12 +343,7 @@ function IssueViewingKey({
 }) {
   const [auditor, setAuditor] = React.useState("");
   const [email, setEmail] = React.useState("");
-  const [justIssued, setJustIssued] = React.useState<{
-    record: IssuedKey;
-    link: string;
-  } | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
-  const [linkCopied, setLinkCopied] = React.useState(false);
 
   const canSubmit =
     walletReady && auditor.trim().length > 0 && !submitting && !isDerivingKey;
@@ -360,8 +356,9 @@ function IssueViewingKey({
       try {
         const issued = await onIssue({ auditor, email });
         if (!issued) return;
-        setJustIssued(issued);
-        setLinkCopied(false);
+        toast.success("Key issued", {
+          description: `Copy the auditor link for ${issued.record.auditor} from Active keys.`,
+        });
         setAuditor("");
         setEmail("");
       } finally {
@@ -370,26 +367,6 @@ function IssueViewingKey({
     },
     [canSubmit, onIssue, auditor, email],
   );
-
-  const handleCopyLink = React.useCallback(() => {
-    if (!justIssued || typeof navigator === "undefined" || !navigator.clipboard)
-      return;
-    navigator.clipboard.writeText(justIssued.link).then(
-      () => setLinkCopied(true),
-      () => {
-        // ignore, clipboard can fail in some browser contexts
-      },
-    );
-  }, [justIssued]);
-
-  // The success banner sticks until dismissed or replaced by the next issue,
-  // since the auditor link only appears here (no other surface re-derives the
-  // key without another wallet sign).
-  React.useEffect(() => {
-    if (!linkCopied) return;
-    const t = setTimeout(() => setLinkCopied(false), 1600);
-    return () => clearTimeout(t);
-  }, [linkCopied]);
 
   return (
     <motion.section
@@ -478,92 +455,26 @@ function IssueViewingKey({
           />
         </div>
 
-        <div className="mt-auto flex flex-col gap-2">
-          <AnimatePresence mode="popLayout">
-            {justIssued ? (
-              <motion.div
-                key={justIssued.record.id}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.22 }}
-                className="flex flex-col gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-[12px] text-foreground"
-              >
-                <div className="flex items-center gap-2">
-                  <HugeiconsIcon
-                    icon={CheckmarkCircle01Icon}
-                    size={13}
-                    strokeWidth={2}
-                    className="text-emerald-400"
-                  />
-                  <span className="min-w-0 truncate">
-                    Issued for{" "}
-                    <span className="font-medium">
-                      {justIssued.record.auditor}
-                    </span>
-                    <span className="ml-1 font-mono text-[10.5px] text-foreground/55">
-                      {justIssued.record.id}
-                    </span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 rounded-md border border-border bg-background/60 pl-2.5">
-                  <span
-                    className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground/80"
-                    title={justIssued.link}
-                  >
-                    {justIssued.link}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyLink}
-                    aria-label={
-                      linkCopied ? "Auditor link copied" : "Copy auditor link"
-                    }
-                    className={cn(
-                      "flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors",
-                      linkCopied
-                        ? "text-primary"
-                        : "text-foreground/65 hover:bg-secondary/60 hover:text-foreground",
-                    )}
-                  >
-                    <HugeiconsIcon
-                      icon={linkCopied ? CheckmarkCircle01Icon : Link01Icon}
-                      size={12}
-                      strokeWidth={2}
-                    />
-                    {linkCopied ? "Copied" : "Copy link"}
-                  </button>
-                </div>
-                <p className="text-[10.5px] text-foreground/55">
-                  Send this link to {justIssued.record.auditor}. It opens a
-                  read-only view of the selected range. Treat it like a
-                  password.
-                </p>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-
-          <FancyButton
-            type="submit"
-            variant="primary"
-            size="lg"
-            className="self-start"
-            disabled={!canSubmit}
-            aria-busy={submitting || isDerivingKey || undefined}
-            title={
-              walletReady
-                ? undefined
-                : "Connect a wallet first to bind the key to your account."
-            }
-          >
-            {isDerivingKey
-              ? "Signing…"
-              : submitting
-                ? "Generating…"
-                : "Generate viewing key"}
-            <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2.2} />
-          </FancyButton>
-        </div>
+        <FancyButton
+          type="submit"
+          variant="primary"
+          size="lg"
+          className="mt-auto self-start"
+          disabled={!canSubmit}
+          aria-busy={submitting || isDerivingKey || undefined}
+          title={
+            walletReady
+              ? undefined
+              : "Connect a wallet first to bind the key to your account."
+          }
+        >
+          {isDerivingKey
+            ? "Signing…"
+            : submitting
+              ? "Generating…"
+              : "Generate viewing key"}
+          <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2.2} />
+        </FancyButton>
       </form>
     </motion.section>
   );
@@ -957,7 +868,9 @@ function paymentRecordToDisplayTx(r: PaymentRecord): ReceivedTransaction {
     timestamp: r.timestamp,
     recipient: r.recipient,
     commitment: `pay-${r.id}`,
-    signature: r.depositSignature || r.withdrawSignature,
+    // Per-row payout sig is unique; depositSignature collides across rows of
+    // the same payroll batch and would clash with React's list keys.
+    signature: r.withdrawSignature || r.depositSignature,
     mint: r.mint,
     decimals: r.decimals,
     symbol: r.token,
