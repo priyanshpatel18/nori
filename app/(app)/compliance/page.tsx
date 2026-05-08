@@ -53,6 +53,10 @@ import {
   revokeKey,
   type IssuedKey,
 } from "@/lib/cloak/viewing-keys";
+import {
+  resolveDecimals as resolveMintDecimals,
+  resolveSymbol as resolveMintSymbol,
+} from "@/lib/cloak/known-mints";
 import { solanaConfig } from "@/lib/solana/config";
 import { solscanAddressUrl, solscanTxUrl } from "@/lib/solana/explorer";
 import { toast } from "@/lib/toast";
@@ -170,7 +174,7 @@ export default function CompliancePage() {
         createdAt: Date.now(),
       };
       appendKey(issuer, solanaConfig.cluster, record);
-      const link = buildAuditorUrl({
+      const link = await buildAuditorUrl({
         nkHex,
         wallet: issuer,
         fromDate,
@@ -753,9 +757,10 @@ function TransactionRow({
   index: number;
   onSelect: (tx: ReceivedTransaction) => void;
 }) {
-  const decimals = tx.decimals ?? 9;
+  const mintForRow = (tx.outputMint ?? tx.mint ?? "").trim();
+  const decimals = resolveMintDecimals(mintForRow, tx.decimals) ?? 9;
   const amount = formatBaseUnits(String(tx.netAmount), decimals);
-  const symbol = tx.outputSymbol ?? tx.symbol ?? "";
+  const symbol = resolveMintSymbol(mintForRow, tx.outputSymbol ?? tx.symbol);
   const sigShort = tx.signature
     ? `${tx.signature.slice(0, 4)}…${tx.signature.slice(-4)}`
     : `${tx.commitment.slice(0, 4)}…${tx.commitment.slice(-4)}`;
@@ -917,9 +922,11 @@ function TxDetailDrawer({
 }
 
 function TxDetailBody({ tx }: { tx: ReceivedTransaction }) {
-  const decimals = tx.decimals ?? 9;
-  const symbol = tx.symbol ?? "";
-  const outputSymbol = tx.outputSymbol ?? "";
+  const sellMint = (tx.mint ?? "").trim();
+  const buyMint = (tx.outputMint ?? "").trim();
+  const decimals = resolveMintDecimals(sellMint, tx.decimals) ?? 9;
+  const symbol = resolveMintSymbol(sellMint, tx.symbol);
+  const outputSymbol = resolveMintSymbol(buyMint, tx.outputSymbol);
   const amount = formatBaseUnits(String(tx.amount), decimals);
   const fee = formatBaseUnits(String(tx.fee), decimals);
   const netAmount = formatBaseUnits(String(tx.netAmount), decimals);
@@ -1218,8 +1225,8 @@ function summarizeByToken(
   for (const tx of received) {
     const mint = (tx.outputMint ?? tx.mint ?? "").trim();
     if (!mint) continue;
-    const symbol = (tx.outputSymbol ?? tx.symbol ?? "").trim();
-    const decimals = tx.decimals ?? 9;
+    const symbol = resolveMintSymbol(mint, tx.outputSymbol ?? tx.symbol);
+    const decimals = resolveMintDecimals(mint, tx.decimals) ?? 9;
     const e = upsert(mint, symbol, decimals);
     try {
       e.inflow += BigInt(String(tx.netAmount));

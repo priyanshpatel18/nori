@@ -22,3 +22,13 @@ model FaucetClaim {
   @@index([ipHash, claimedAt(sort: Desc)], map: "faucet_claims_ip_hash_idx")
   @@map("faucet_claims")
 }
+
+model ComplianceShare {
+  id        String   @id
+  payload   String
+  issuer    String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([issuer, createdAt(sort: Desc)], map: "compliance_shares_issuer_idx")
+  @@map("compliance_shares")
+}

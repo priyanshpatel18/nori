@@ -2,9 +2,6 @@ import { scanTransactions, toComplianceReport } from "@cloak.dev/sdk";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { NextResponse } from "next/server";
 
-import { cloakConfig } from "@/lib/cloak/config";
-import { solanaConfig } from "@/lib/solana/config";
-
 export const runtime = "nodejs";
 // Scans can take seconds when there's a large delta; opt out of static
 // caching since the response is wallet-specific and time-sensitive.
@@ -22,23 +19,59 @@ const PLACEHOLDER_NK = new Uint8Array(32);
 // brought in by repeated incremental calls (each advances the cursor by up
 // to LIMIT_DEFAULT). Bumping the cap risks triggering Helius free-tier
 // 429s, which the SDK retries indefinitely and turns into a hot loop.
-const LIMIT_DEFAULT = 200;
+// Smaller initial window so the first-ever scan finishes inside the wall
+// clock budget on rate-limited RPCs. Subsequent syncs use the cached
+// `untilSignature` cursor and only fetch the delta, so 100 is plenty.
+const LIMIT_DEFAULT = 100;
 const LIMIT_MAX = 1000;
 
-// `getTransaction` calls are issued in parallel batches. Helius free tier
-// caps at ~10 RPS; 3 parallel keeps us well under that with headroom for
-// the periodic `getSignaturesForAddress` page calls.
-const BATCH_SIZE = 3;
+// `getTransaction` calls are issued in parallel batches. Bumped from 3 to
+// 5 — paid Helius tiers handle this comfortably, and the previous setting
+// made every scan sequential enough to hit the 30s wall on busy wallets.
+const BATCH_SIZE = 5;
 
 // Hard wall-clock cap on the SDK call. If we hit it, we abort and return
 // a 504 instead of letting an infinite retry loop run on the server.
-const SCAN_TIMEOUT_MS = 30_000;
+const SCAN_TIMEOUT_MS = 45_000;
 
 type ScanRequest = {
   wallet?: unknown;
   untilSignature?: unknown;
   limit?: unknown;
+  cluster?: unknown;
 };
+
+type SupportedCluster = "mainnet-beta" | "devnet";
+
+const CLUSTER_PROGRAM_IDS: Record<SupportedCluster, PublicKey> = {
+  "mainnet-beta": new PublicKey(
+    "zh1eLd6rSphLejbFfJEneUwzHRfMKxgzrgkfwA6qRkW",
+  ),
+  devnet: new PublicKey("Zc1kHfp4rajSMeASFDwFFgkHRjv7dFQuLheJoQus27h"),
+};
+
+const CLUSTER_DEFAULT_RPC: Record<SupportedCluster, string> = {
+  "mainnet-beta": "https://api.mainnet-beta.solana.com",
+  devnet: "https://api.devnet.solana.com",
+};
+
+function resolveCluster(value: unknown): SupportedCluster {
+  return value === "mainnet-beta" || value === "devnet" ? value : "devnet";
+}
+
+function resolveRpcUrl(cluster: SupportedCluster): string {
+  // Per-cluster overrides take precedence so a deployment can wire each
+  // cluster to its own dedicated RPC pool. Falls back to the legacy single
+  // CLOAK_SCAN_RPC_URL only when it matches the request cluster (otherwise
+  // the legacy env would silently mis-route — e.g. a mainnet URL for a
+  // devnet client). Public defaults catch the unconfigured case.
+  const perCluster =
+    cluster === "mainnet-beta"
+      ? process.env.CLOAK_SCAN_RPC_URL_MAINNET
+      : process.env.CLOAK_SCAN_RPC_URL_DEVNET;
+  if (perCluster) return perCluster;
+  return CLUSTER_DEFAULT_RPC[cluster];
+}
 
 export async function POST(req: Request) {
   let body: ScanRequest;
@@ -68,14 +101,18 @@ export async function POST(req: Request) {
       : undefined;
 
   const limit = clampLimit(body.limit);
-
-  // Prefer a server-only RPC URL so client credits stay isolated from
-  // server credits. Falls back to the public RPC URL if the dedicated
-  // server URL isn't configured.
-  const rpcUrl =
-    process.env.CLOAK_SCAN_RPC_URL ??
-    process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
-    solanaConfig.rpcUrl;
+  const cluster = resolveCluster(body.cluster);
+  const programId = CLUSTER_PROGRAM_IDS[cluster];
+  const rpcUrl = resolveRpcUrl(cluster);
+  // Log just the host so we can verify which RPC the server actually used
+  // without leaking api keys from the query string.
+  const rpcHost = (() => {
+    try {
+      return new URL(rpcUrl).host;
+    } catch {
+      return "unknown";
+    }
+  })();
   const connection = new Connection(rpcUrl, "confirmed");
 
   const startedAt = Date.now();
@@ -83,7 +120,7 @@ export async function POST(req: Request) {
     const result = await withTimeout(
       scanTransactions({
         connection,
-        programId: cloakConfig.programId,
+        programId,
         viewingKeyNk: PLACEHOLDER_NK,
         walletPublicKey: walletPk.toBase58(),
         untilSignature,
@@ -94,14 +131,14 @@ export async function POST(req: Request) {
     );
     const report = toComplianceReport(result);
     console.log(
-      `[scan-received] ok wallet=${walletPk.toBase58().slice(0, 6)}… limit=${limit} txs=${report.transactions.length} rpc=${report.rpcCallsMade} elapsed=${Date.now() - startedAt}ms`,
+      `[scan-received] ok cluster=${cluster} host=${rpcHost} wallet=${walletPk.toBase58().slice(0, 6)}… limit=${limit} txs=${report.transactions.length} rpc=${report.rpcCallsMade} elapsed=${Date.now() - startedAt}ms`,
     );
     return NextResponse.json({ report });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const status = message === "scan-timeout" ? 504 : 500;
     console.error(
-      `[scan-received] err wallet=${walletPk.toBase58().slice(0, 6)}… status=${status} elapsed=${Date.now() - startedAt}ms · ${message}`,
+      `[scan-received] err cluster=${cluster} host=${rpcHost} wallet=${walletPk.toBase58().slice(0, 6)}… status=${status} elapsed=${Date.now() - startedAt}ms · ${message}`,
     );
     return NextResponse.json({ error: message }, { status });
   }

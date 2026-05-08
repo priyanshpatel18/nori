@@ -48,6 +48,10 @@ import type {
   ReceivedTransaction,
   StoredScan,
 } from "@/lib/cloak/scanned-history";
+import {
+  resolveDecimals as resolveMintDecimals,
+  resolveSymbol as resolveMintSymbol,
+} from "@/lib/cloak/known-mints";
 import { usePaymentHistory } from "@/lib/cloak/use-payment-history";
 import {
   useScannedHistory,
@@ -676,8 +680,8 @@ function summarizeByToken(
     // received. For deposits / withdraws / transfers, fall back to `mint`.
     const mint = (tx.outputMint ?? tx.mint ?? "").trim();
     if (!mint) continue;
-    const symbol = (tx.outputSymbol ?? tx.symbol ?? "").trim();
-    const decimals = tx.decimals ?? 9;
+    const symbol = resolveMintSymbol(mint, tx.outputSymbol ?? tx.symbol);
+    const decimals = resolveMintDecimals(mint, tx.decimals) ?? 9;
     const e = upsert(mint, symbol, decimals);
     try {
       e.inflow += BigInt(String(tx.netAmount));
@@ -1082,8 +1086,12 @@ function ReceivedRow({
   const sigShort = tx.signature
     ? `${tx.signature.slice(0, 4)}…${tx.signature.slice(-4)}`
     : null;
-  const decimals = tx.decimals ?? 9;
-  const symbol = tx.symbol ?? "";
+  // For withdraws / transfers / deposits the mint comes via `tx.mint`; for
+  // swaps the buy-side mint is on `tx.outputMint`. Either way the resolver
+  // labels the devnet mock USDC mint that the SDK leaves unsymbolised.
+  const rowMint = (tx.outputMint ?? tx.mint ?? "").trim();
+  const decimals = resolveMintDecimals(rowMint, tx.decimals) ?? 9;
+  const symbol = resolveMintSymbol(rowMint, tx.outputSymbol ?? tx.symbol);
   const formattedNet = formatBaseUnits(String(tx.netAmount), decimals);
   const dateLabel = formatDate(tx.timestamp);
   const explorerUrl = tx.signature ? solscanTxUrl(tx.signature) : null;

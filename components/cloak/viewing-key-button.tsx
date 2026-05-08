@@ -55,11 +55,18 @@ export function ViewingKeyButton() {
 
   const onCopyAuditorLink = React.useCallback(() => {
     if (state.status !== "ready") return;
-    const url = buildAuditorUrl({
-      nkHex: state.material.nkHex,
-      wallet: wallet.publicKey?.toBase58() ?? null,
-    });
-    void writeToClipboard(url);
+    void (async () => {
+      try {
+        const url = await buildAuditorUrl({
+          nkHex: state.material.nkHex,
+          wallet: wallet.publicKey?.toBase58() ?? null,
+        });
+        await writeToClipboard(url);
+      } catch {
+        // Ignore — the share endpoint surface its own error toast on the
+        // dashboard side; the wallet-button quick action is best-effort.
+      }
+    })();
   }, [state, wallet.publicKey, writeToClipboard]);
 
   if (state.status === "ready") {

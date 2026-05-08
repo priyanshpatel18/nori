@@ -1,4 +1,4 @@
-import type { SolanaCluster } from "@/lib/solana/config";
+import { solanaConfig, type SolanaCluster } from "@/lib/solana/config";
 
 import type { PaymentRecord } from "./payment-history";
 
@@ -257,31 +257,71 @@ function isAuditorSentEntry(value: unknown): value is AuditorSentEntry {
 }
 
 /**
- * Build the URL an auditor opens to reconstruct the issuer's ledger.
- * `nkHex` is the wire-format viewing key, treat like a password. Date params
- * are passed through as YYYY-MM-DD strings, the auditor view interprets empty
- * sides as open-ended. `sentRecords` ride in the URL hash so outbound private
- * transfers (which the on-chain scan can't see) reach the auditor without
- * touching any server.
+ * Compact share payload posted to the server. The auditor URL just carries a
+ * short opaque id; the auditor's browser fetches this back and hydrates the
+ * scan form + embedded sends. The id is the secret — anyone holding the URL
+ * can fetch the payload and decrypt the issuer's ledger, exactly like the
+ * legacy `?nk=…` URL.
  */
-export function buildAuditorUrl(opts: {
+export type CompliancePayload = {
+  v: 1;
+  nk: string;
+  wallet: string | null;
+  cluster: SolanaCluster;
+  fromDate?: string;
+  toDate?: string;
+  sent?: AuditorSentEntry[];
+};
+
+/**
+ * Build the URL an auditor opens to reconstruct the issuer's ledger. Posts a
+ * compact payload to `/api/compliance/share` and returns a 10-char id-based
+ * URL like `/c/aB3xK9pQ12`. The id is a random secret; anyone with the URL
+ * can fetch the payload and view the ledger.
+ */
+export async function buildAuditorUrl(opts: {
   nkHex: string;
   wallet: string | null;
   fromDate?: string;
   toDate?: string;
   sentRecords?: PaymentRecord[];
-}): string {
-  const params = new URLSearchParams({ nk: opts.nkHex });
-  if (opts.wallet) params.set("wallet", opts.wallet);
-  if (opts.fromDate) params.set("from", opts.fromDate);
-  if (opts.toDate) params.set("to", opts.toDate);
-  let path = `/compliance/view?${params.toString()}`;
-  if (opts.sentRecords && opts.sentRecords.length > 0) {
-    const entries = opts.sentRecords.map(paymentToSentEntry);
-    path += `#h=${encodeSentHistory(entries)}`;
+}): Promise<string> {
+  const sent = opts.sentRecords?.length
+    ? opts.sentRecords.map(paymentToSentEntry)
+    : undefined;
+  const payload: CompliancePayload = {
+    v: 1,
+    nk: opts.nkHex,
+    wallet: opts.wallet,
+    cluster: solanaConfig.cluster,
+    fromDate: opts.fromDate,
+    toDate: opts.toDate,
+    sent,
+  };
+  const issuer = opts.wallet ?? "";
+  const res = await fetch("/api/compliance/share", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ payload: JSON.stringify(payload), issuer }),
+  });
+  if (!res.ok) {
+    const detail = await safeReadError(res);
+    throw new Error(detail);
   }
+  const json = (await res.json()) as { id?: string };
+  if (!json.id) throw new Error("Share endpoint returned no id.");
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  return `${origin}${path}`;
+  return `${origin}/audit/${json.id}`;
+}
+
+async function safeReadError(res: Response): Promise<string> {
+  try {
+    const json = (await res.json()) as { error?: string };
+    if (json && typeof json.error === "string") return json.error;
+  } catch {
+    // not JSON
+  }
+  return `Share request failed (${res.status}).`;
 }
 
 function isIssuedKey(value: unknown): value is IssuedKey {

@@ -122,6 +122,7 @@ export function useScannedHistory(): UseScannedHistory {
           body: JSON.stringify({
             wallet: sender,
             untilSignature: previous?.report.lastSignature,
+            cluster: solanaConfig.cluster,
           }),
         });
         if (!res.ok) {
