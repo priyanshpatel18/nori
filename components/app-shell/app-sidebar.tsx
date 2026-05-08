@@ -8,6 +8,7 @@ import * as React from "react";
 import {
   ClockIcon,
   ComplianceIcon,
+  FaucetIcon,
   PayrollIcon,
   SendIcon,
   SettingsIcon,
@@ -91,6 +92,12 @@ const NAV: NavItem[] = [
     label: "Compliance",
     description: "Viewing keys and signed reports.",
     icon: ComplianceIcon,
+  },
+  {
+    href: "/faucet",
+    label: "Faucet",
+    description: "Mock USDC and devnet SOL for testing.",
+    icon: FaucetIcon,
   },
   {
     href: "/settings",

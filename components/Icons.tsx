@@ -319,6 +319,25 @@ export const TeamSolidIcon = makeIcon({
   ),
 });
 
+export const FaucetIcon = makeIcon({
+  viewBox: "0 0 24 24",
+  draw: (
+    <>
+      <path
+        d="M5 7H10C11.1046 7 12 7.89543 12 9V13H4V9C4 7.89543 4.89543 7 6 7H5Z"
+        {...STROKE}
+      />
+      <path d="M12 10H17C19.2091 10 21 8.20914 21 6V5" {...STROKE} />
+      <path d="M14 5H21" {...STROKE} />
+      <path
+        d="M8 13V18C8 19.6569 6.65685 21 5 21H7C8.65685 21 10 19.6569 10 18V13"
+        {...STROKE}
+      />
+      <path d="M3 13H13" {...STROKE} />
+    </>
+  ),
+});
+
 export const SettingsIcon = makeIcon({
   viewBox: "0 0 24 24",
   draw: (

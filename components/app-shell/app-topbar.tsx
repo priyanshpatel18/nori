@@ -37,6 +37,10 @@ const TITLES: Record<string, { title: string; subtitle: string }> = {
     title: "Compliance",
     subtitle: "Issue viewing keys and export signed reports.",
   },
+  "/faucet": {
+    title: "Faucet",
+    subtitle: "Mock USDC and devnet SOL for testing.",
+  },
   "/settings": {
     title: "Settings",
     subtitle: "Cluster, demo mode, and the devnet faucet.",
