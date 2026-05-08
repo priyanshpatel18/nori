@@ -26,6 +26,19 @@ const DEVNET_RPC_FALLBACK = "https://api.devnet.solana.com";
 // client) but raises the bar enough that abuse needs intent.
 const DEV_ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"];
 
+function vercelAutoOrigins(): string[] {
+  // Vercel injects these for every deployment, so production deploys work
+  // without manual config. Custom domains still need CLOAK_FAUCET_ALLOWED_ORIGINS.
+  const out: string[] = [];
+  const prod = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (prod) out.push(`https://${prod}`);
+  const branch = process.env.VERCEL_BRANCH_URL?.trim();
+  if (branch) out.push(`https://${branch}`);
+  const current = process.env.VERCEL_URL?.trim();
+  if (current) out.push(`https://${current}`);
+  return out;
+}
+
 function allowedOrigins(): string[] {
   const env = process.env.CLOAK_FAUCET_ALLOWED_ORIGINS?.trim();
   const fromEnv = env
@@ -34,16 +47,24 @@ function allowedOrigins(): string[] {
         .map((s) => s.trim().replace(/\/$/, ""))
         .filter(Boolean)
     : [];
+  const fromVercel = vercelAutoOrigins();
   if (process.env.NODE_ENV !== "production") {
-    return [...new Set([...DEV_ALLOWED_ORIGINS, ...fromEnv])];
+    return [...new Set([...DEV_ALLOWED_ORIGINS, ...fromVercel, ...fromEnv])];
   }
-  return fromEnv;
+  return [...new Set([...fromVercel, ...fromEnv])];
 }
 
 function originAllowed(req: Request): boolean {
   const origin = req.headers.get("origin")?.trim().replace(/\/$/, "");
+  const allowed = allowedOrigins();
+  if (allowed.length === 0) {
+    console.warn(
+      "[faucet/sol] no allowed origins configured. Set CLOAK_FAUCET_ALLOWED_ORIGINS or deploy to Vercel where VERCEL_PROJECT_PRODUCTION_URL is auto-injected.",
+    );
+    return false;
+  }
   if (!origin) return false;
-  return allowedOrigins().includes(origin);
+  return allowed.includes(origin);
 }
 
 let treasuryCache: Keypair | null = null;
@@ -105,6 +126,9 @@ type SolFaucetRequest = {
 
 export async function POST(req: Request) {
   if (!originAllowed(req)) {
+    console.warn(
+      `[faucet/sol] 403 origin="${req.headers.get("origin") ?? "(missing)"}" allowed=[${allowedOrigins().join(",")}]`,
+    );
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
