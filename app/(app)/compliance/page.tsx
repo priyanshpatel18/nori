@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowReloadHorizontalIcon,
   ArrowRight01Icon,
   ArrowUpRight01Icon,
   CheckmarkCircle01Icon,
@@ -64,7 +65,19 @@ import { cn } from "@/lib/utils";
 
 export default function CompliancePage() {
   const { records } = usePaymentHistory();
-  const { scan, received } = useScannedHistory();
+  const {
+    scan,
+    received,
+    status: scanStatus,
+    sync: runScan,
+  } = useScannedHistory();
+  const handleSync = React.useCallback(() => {
+    void runScan().catch(() => {
+      // Errors are surfaced via the hook's `error` state and toast in the
+      // existing /history flow; failing silently here keeps the compliance
+      // page calm.
+    });
+  }, [runScan]);
 
   // YYYY-MM-DD strings, empty = unbounded. Shared between the issue-key
   // form (where the auditor's window is picked) and the summary preview
@@ -303,6 +316,9 @@ export default function CompliancePage() {
               dateActive={dateActive}
               onSelect={(tx) => setSelectedKey(tx.signature ?? tx.commitment)}
               onExport={handleExportCsv}
+              onSync={handleSync}
+              syncing={scanStatus === "scanning"}
+              walletConnected={Boolean(issuer)}
             />
           </div>
         </div>
@@ -684,22 +700,30 @@ function TransactionsCard({
   dateActive,
   onSelect,
   onExport,
+  onSync,
+  syncing,
+  walletConnected,
 }: {
   transactions: ReceivedTransaction[];
   hasScan: boolean;
   dateActive: boolean;
   onSelect: (tx: ReceivedTransaction) => void;
   onExport: () => void;
+  onSync: () => void;
+  syncing: boolean;
+  walletConnected: boolean;
 }) {
   const count = transactions.length;
   const canExport = hasScan && count > 0;
-  const hint = !hasScan
-    ? "Sync received first on History."
-    : count === 0
-      ? dateActive
-        ? "No transactions in the selected range."
-        : "No transactions yet."
-      : `${count} ${count === 1 ? "tx" : "txs"}${dateActive ? " in range" : ""}`;
+  const hint = syncing
+    ? "Syncing received from chain…"
+    : !hasScan
+      ? "Click Sync to read receives off-chain."
+      : count === 0
+        ? dateActive
+          ? "No transactions in the selected range."
+          : "No transactions yet."
+        : `${count} ${count === 1 ? "tx" : "txs"}${dateActive ? " in range" : ""}`;
 
   return (
     <motion.section
@@ -717,16 +741,42 @@ function TransactionsCard({
             {hint}
           </p>
         </div>
-        <FancyButton
-          variant="primary"
-          size="sm"
-          onClick={onExport}
-          disabled={!canExport}
-          aria-label="Export compliance CSV for the selected date range"
-        >
-          <HugeiconsIcon icon={Download01Icon} size={12} strokeWidth={2} />
-          Export CSV
-        </FancyButton>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onSync}
+            disabled={syncing || !walletConnected}
+            aria-label="Sync received transactions from chain"
+            title={
+              walletConnected
+                ? "Re-scan the chain for new receives, withdraws and swaps"
+                : "Connect a wallet to sync"
+            }
+            className={cn(
+              "inline-flex items-center gap-1 rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-[11.5px] font-medium text-foreground/80 transition-colors",
+              "hover:border-primary/30 hover:text-foreground",
+              "disabled:cursor-not-allowed disabled:opacity-50",
+            )}
+          >
+            <HugeiconsIcon
+              icon={ArrowReloadHorizontalIcon}
+              size={12}
+              strokeWidth={2}
+              className={cn(syncing && "animate-spin")}
+            />
+            {syncing ? "Syncing" : "Sync"}
+          </button>
+          <FancyButton
+            variant="primary"
+            size="sm"
+            onClick={onExport}
+            disabled={!canExport}
+            aria-label="Export compliance CSV for the selected date range"
+          >
+            <HugeiconsIcon icon={Download01Icon} size={12} strokeWidth={2} />
+            Export CSV
+          </FancyButton>
+        </div>
       </div>
 
       <ul className="scrollbar-cloak mt-3 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
