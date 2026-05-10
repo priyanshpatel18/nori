@@ -29,9 +29,9 @@ First Groth16 proof took 92s, second took 1.5s. The 92s cold-start was the provi
 Self-resolved by self-hosting the circuit artifacts at `public/circuits/0.1.0/transaction_js/transaction.wasm` and `transaction_final.zkey`, then pointing `setCircuitsPath` at the same origin so the artifacts ship from Vercel's edge. Pattern documented at `nori/lib/cloak/init.ts` as reference for future integrators.
 
 ### CORS Missing on Devnet Relay
-**Filed 2026-05-07 · Pending upstream**
+**Filed 2026-05-07 · Resolved upstream 2026-05-10**
 
-Same shape as the mainnet issue, this time on `api.devnet.cloak.ag`. Reported with preflight screenshots. Worked around in Nori by routing the devnet faucet call through a Next.js API route at `/api/faucet`, which talks to the upstream server-side and forwards the response. Pattern at `nori/app/api/faucet/route.ts`.
+Same shape as the mainnet issue, this time on `api.devnet.cloak.ag`. Reported with preflight screenshots. Cloak team shipped CORS headers on the devnet relay within ~3 days. The Nori-side faucet proxy at `nori/app/api/faucet/route.ts` is no longer load-bearing for CORS, but stays in place because it also gates the once-per-wallet ledger and shields the upstream faucet from direct browser traffic.
 
 ### Solana Earn Discord Invite Link Invalid
 **Filed 2026-04-29 · Resolved**
@@ -68,6 +68,6 @@ Each of these started as a Nori workaround for an upstream gap. They are written
 
 ## Response
 
-Average upstream response time: 1 to 3 days. Three of the six issues filed have shipped fixes; one was clarified as intentional behavior; two are pending. The Cloak team has been responsive and direct.
+Average upstream response time: 1 to 3 days. Four of the six issues filed have shipped fixes; one was clarified as intentional behavior; one is pending (cold-start prover `warmup()` proposal, with a Nori-side workaround already in place). The Cloak team has been responsive and direct.
 
 Nori plans to keep filing against real production usage as more flows go live (full devnet end-to-end, batch payroll under load, viewing-key issuance against external auditors), and to publish workaround patterns in this file as they ship.

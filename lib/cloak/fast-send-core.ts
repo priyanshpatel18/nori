@@ -27,6 +27,7 @@ import {
   dismissProofRefreshing,
   showProofRefreshing,
 } from "@/lib/cloak/proof-refresh-toast";
+import { loadDevnetRelayAlt } from "@/lib/cloak/relay-alt";
 import type { SolanaCluster } from "@/lib/solana/config";
 
 export type FastSendPhase =
@@ -136,6 +137,13 @@ export async function fastSendOnce(
         `loaded cached merkle tree (length=${cachedTreeForDeposit.length})`,
       );
     }
+    // On devnet, pre-resolve the relay's ALT so the SDK never falls back to
+    // creating an ephemeral one (which would trigger an extra wallet popup
+    // before the deposit signature). No-op on mainnet.
+    const devnetAlt = await loadDevnetRelayAlt(connection, relayUrl);
+    if (devnetAlt.length > 0) {
+      log.step(`using pre-fetched relay ALT (count=${devnetAlt.length})`);
+    }
     const depositResult = await transact(
       {
         inputUtxos: [await createZeroUtxo(mint)],
@@ -155,6 +163,9 @@ export async function fastSendOnce(
         // uses ephemeral UTXOs, so no persistent shielded balance needs scanning.
         enforceViewingKeyRegistration: false,
         cachedMerkleTree: cachedTreeForDeposit,
+        ...(devnetAlt.length > 0
+          ? { addressLookupTableAccounts: devnetAlt }
+          : {}),
         onProgress: (status) => {
           log.sdk(status);
           if (

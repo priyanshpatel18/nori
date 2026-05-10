@@ -54,6 +54,7 @@ import {
   type OrphanUtxoRecord,
   type SerializedUtxo,
 } from "./orphan-utxo-store";
+import { loadDevnetRelayAlt } from "./relay-alt";
 
 export type BatchRowInput = {
   /** Stable id from the parsed CSV (rowNumber). */
@@ -247,6 +248,12 @@ export function useBatchPayroll() {
         solanaConfig.cluster,
         cloakConfig.programId,
       );
+      // Pre-resolve relay ALT on devnet to keep the batch deposit at one
+      // wallet popup. Mainnet returns []; behavior unchanged.
+      const devnetAlt = await loadDevnetRelayAlt(
+        connection,
+        cloakConfig.relayUrl,
+      );
       try {
         const depositOutput = await createUtxo(total, ephemeralKeypair, mint);
         let inSubmitPhase = false;
@@ -267,6 +274,9 @@ export function useBatchPayroll() {
             signMessage,
             enforceViewingKeyRegistration: false,
             cachedMerkleTree: cachedTreeForDeposit,
+            ...(devnetAlt.length > 0
+              ? { addressLookupTableAccounts: devnetAlt }
+              : {}),
             onProgress: (status) =>
               setState((s) => {
                 if (s.phase !== "depositing-proof" && s.phase !== "depositing-submit") {

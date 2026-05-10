@@ -30,6 +30,7 @@ import {
   buildRecoverableNoteB64,
   RECOVERABLE_SHIELDS_ENABLED,
 } from "@/lib/cloak/recoverable-notes";
+import { loadDevnetRelayAlt } from "@/lib/cloak/relay-alt";
 import {
   appendUtxos,
   hydrateUtxo,
@@ -129,6 +130,11 @@ export async function shieldDeposit(
   let phase: ShieldPhase = "building-proof";
 
   const cachedTree = await loadMerkleTreeCache(cluster, programId);
+  // Pre-fetch the relay's ALT on devnet so the SDK skips its ephemeral-ALT
+  // fallback (which would otherwise pop a second wallet signature for SPL
+  // deposits or whenever the SDK's own /health fetch returned stale/empty).
+  // Returns [] on mainnet; mainnet behavior is unchanged.
+  const devnetAlt = await loadDevnetRelayAlt(connection, relayUrl);
   let result;
   try {
     result = await transact(
@@ -148,6 +154,9 @@ export async function shieldDeposit(
         signMessage,
         enforceViewingKeyRegistration: false,
         cachedMerkleTree: cachedTree,
+        ...(devnetAlt.length > 0
+          ? { addressLookupTableAccounts: devnetAlt }
+          : {}),
         ...(encryptedNotes ? { encryptedNotes } : {}),
         onProgress: (status) => {
           if (phase === "building-proof" && /submit|send|broadcast/i.test(status)) {
@@ -278,6 +287,7 @@ export async function shieldWithdrawTo(
     }
 
     const cachedMergeTree = await loadMerkleTreeCache(cluster, programId);
+    const mergeDevnetAlt = await loadDevnetRelayAlt(connection, relayUrl);
     let mergeResult;
     try {
       mergeResult = await transact(
@@ -295,6 +305,9 @@ export async function shieldWithdrawTo(
           signMessage,
           enforceViewingKeyRegistration: false,
           cachedMerkleTree: cachedMergeTree,
+          ...(mergeDevnetAlt.length > 0
+            ? { addressLookupTableAccounts: mergeDevnetAlt }
+            : {}),
           ...(mergeEncryptedNotes
             ? { encryptedNotes: mergeEncryptedNotes }
             : {}),
@@ -360,6 +373,7 @@ export async function shieldWithdrawTo(
   let phase: ShieldPhase = "building-proof";
 
   const cachedWithdrawTree = await loadMerkleTreeCache(cluster, programId);
+  const withdrawDevnetAlt = await loadDevnetRelayAlt(connection, relayUrl);
   const sdkOptions = {
     connection,
     programId,
@@ -369,6 +383,9 @@ export async function shieldWithdrawTo(
     signMessage,
     enforceViewingKeyRegistration: false,
     cachedMerkleTree: cachedWithdrawTree,
+    ...(withdrawDevnetAlt.length > 0
+      ? { addressLookupTableAccounts: withdrawDevnetAlt }
+      : {}),
     onProgress: (status: string) => {
       if (phase === "building-proof" && /submit|send|broadcast/i.test(status)) {
         phase = "submitting";
