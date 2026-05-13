@@ -455,7 +455,7 @@ function FilterTabs({
   };
 
   return (
-    <div className="scrollbar-cloak flex h-9 max-w-full items-center gap-1 overflow-x-auto rounded-md border border-border bg-input/60 p-0.5 sm:self-start sm:overflow-visible">
+    <div className="scrollbar-cloak flex h-10 max-w-full items-center gap-1 overflow-x-auto rounded-md border border-border bg-input/60 p-0.5 sm:h-9 sm:self-start sm:overflow-visible">
       {FILTERS.map((f) => {
         const isActive = value === f.id;
         const count = countFor(f.id);
@@ -470,7 +470,7 @@ function FilterTabs({
               // Override the variant defaults: the active indicator is a
               // motion-animated pill underneath, so we want no hover bg
               // and a normal-cased label.
-              "relative h-7 rounded-md px-2.5 text-[12px] font-medium hover:bg-transparent",
+              "relative h-8 rounded-md px-2.5 text-[12px] font-medium hover:bg-transparent sm:h-7",
               isActive
                 ? "text-foreground"
                 : "text-foreground/55 hover:text-foreground",

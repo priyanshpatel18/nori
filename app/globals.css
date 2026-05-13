@@ -123,6 +123,19 @@
     background: var(--brand);
     color: var(--brand-foreground);
   }
+
+  /*
+   * iOS Safari and mobile Chrome auto-scroll a focused input above the
+   * software keyboard, but only by the minimum amount. That leaves the
+   * submit button immediately below the input hidden under the keyboard.
+   * scroll-margin-bottom gives the browser a hint to scroll a little
+   * further so the input *and* the nearby CTA stay visible.
+   */
+  input,
+  select,
+  textarea {
+    scroll-margin-bottom: 6rem;
+  }
 }
 
 

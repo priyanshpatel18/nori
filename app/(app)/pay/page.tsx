@@ -410,7 +410,7 @@ export default function PayPage() {
                       type="button"
                       onClick={() => setToken(t.id)}
                       className={cn(
-                        "relative flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+                        "relative flex items-center gap-1.5 rounded-sm px-2.5 py-2 text-[12px] font-medium transition-colors sm:py-1.5",
                         isActive
                           ? "text-foreground"
                           : "text-foreground/55 hover:text-foreground",

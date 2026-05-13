@@ -17,7 +17,7 @@ export default function AppLayout({
       <AppSidebar />
       <SidebarInset className="bg-background">
         <AppTopbar />
-        <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden pb-[env(safe-area-inset-bottom)]">
           <PageTransition>{children}</PageTransition>
         </div>
       </SidebarInset>

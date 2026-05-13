@@ -427,7 +427,7 @@ function ParsedSummary({
                   type="button"
                   onClick={() => setTokenId(t.id)}
                   className={cn(
-                    "relative flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+                    "relative flex items-center gap-1.5 rounded-sm px-2.5 py-2 text-[12px] font-medium transition-colors sm:py-1.5",
                     isActive
                       ? "text-foreground"
                       : "text-foreground/55 hover:text-foreground",
@@ -457,7 +457,7 @@ function ParsedSummary({
           <button
             type="button"
             onClick={onReset}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-[12px] text-foreground/65 transition-colors hover:border-destructive/40 hover:text-destructive"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/60 px-2.5 py-2 text-[12px] text-foreground/65 transition-colors hover:border-destructive/40 hover:text-destructive sm:py-1.5"
           >
             <HugeiconsIcon icon={Delete02Icon} size={12} strokeWidth={2} />
             Clear

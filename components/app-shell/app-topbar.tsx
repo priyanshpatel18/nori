@@ -55,7 +55,7 @@ export function AppTopbar() {
     { title: "Nori", subtitle: "" };
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-md sm:px-6">
+    <header className="sticky top-0 z-30 flex min-h-14 items-center gap-3 border-b border-border bg-background/80 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-md sm:px-6">
       <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
 
       <div className="hidden h-5 w-px bg-border sm:block" />
