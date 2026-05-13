@@ -289,7 +289,7 @@ export default function PayPage() {
         description="The transaction is shielded with a Groth16 proof generated in your browser. The chain never sees the recipient or the amount."
       />
 
-      <div className="mx-auto grid w-full max-w-6xl gap-6 px-6 py-10 md:px-8 lg:grid-cols-[1.4fr_1fr]">
+      <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-8 sm:px-6 sm:py-10 md:px-8 lg:grid-cols-[1.4fr_1fr]">
         {fastSend.status === "success" && lastSend ? (
           <SuccessCard
             net={lastSend.net}
@@ -312,7 +312,7 @@ export default function PayPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
           data-tour="pay-form"
-          className="flex min-w-0 flex-col gap-6 rounded-[8px] border border-border bg-card/60 p-5 sm:p-6"
+          className="flex min-w-0 flex-col gap-6 rounded-[8px] border border-border bg-card/60 p-4 sm:p-5 md:p-6"
           onSubmit={(e) => {
             e.preventDefault();
             setAmountTouched(true);
@@ -689,7 +689,7 @@ function SuccessCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-6 rounded-[8px] border border-border bg-card/60 p-5 sm:p-6"
+      className="flex flex-col gap-6 rounded-[8px] border border-border bg-card/60 p-4 sm:p-5 md:p-6"
     >
       <div className="flex items-start gap-3">
         <motion.span

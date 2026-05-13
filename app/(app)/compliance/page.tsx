@@ -263,7 +263,7 @@ export default function CompliancePage() {
         actions={<ViewingKeyButton />}
       />
 
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 p-6 sm:p-8 lg:min-h-0 lg:flex-1">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 p-4 sm:p-6 lg:min-h-0 lg:flex-1 lg:p-8">
         {!issuer ? (
           <EmptyState
             icon={
@@ -393,7 +393,7 @@ function IssueViewingKey({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-      className="flex min-h-0 flex-1 flex-col rounded-[8px] border border-border bg-card/60 p-5"
+      className="flex min-h-0 flex-1 flex-col rounded-[8px] border border-border bg-card/60 p-4 sm:p-5"
     >
       <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-4">
         <div className="flex items-center gap-3">

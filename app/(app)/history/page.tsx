@@ -200,7 +200,7 @@ export default function HistoryPage() {
         description="Every payment you've sent through Nori. The chain sees a transaction. Only you see what's inside."
       />
 
-      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-2.5 p-6 sm:p-8">
+      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-2.5 p-4 sm:p-6 lg:p-8">
         <div className="shrink-0">
           <BalanceSummary summaries={tokenSummaries} />
         </div>

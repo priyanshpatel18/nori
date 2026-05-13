@@ -140,7 +140,7 @@ export function ConnectButton() {
               variant="outline"
               disabled={isBusy}
               size="lg"
-              className="px-5"
+              className="px-3 sm:px-5"
             />
           }
         >

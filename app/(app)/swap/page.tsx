@@ -191,7 +191,7 @@ export default function SwapPage() {
         description="Swap inside the Cloak shielded pool. The chain sees a generic pool tx, not your tokens or amounts."
       />
 
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 sm:px-8">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
         {recovery.unresolved.length > 0 && (
           <PendingSwapsPanel recovery={recovery} />
         )}
@@ -220,7 +220,7 @@ export default function SwapPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-          className="flex min-w-0 flex-col gap-3 rounded-2xl border border-border bg-card/60 p-6 sm:p-8"
+          className="flex min-w-0 flex-col gap-3 rounded-2xl border border-border bg-card/60 p-4 sm:p-6 md:p-8"
           onSubmit={async (e) => {
             e.preventDefault();
             setAmountTouched(true);
@@ -471,7 +471,7 @@ export default function SwapPage() {
           transition={{ duration: 0.32, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
           className="flex flex-col gap-4"
         >
-          <div className="rounded-2xl border border-border bg-card/60 p-6">
+          <div className="rounded-2xl border border-border bg-card/60 p-4 sm:p-5 md:p-6">
             <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
               Quote
             </p>
@@ -513,7 +513,7 @@ export default function SwapPage() {
             </p>
           </div>
 
-          <ul className="flex flex-col gap-2 rounded-2xl border border-border bg-card/40 p-5">
+          <ul className="flex flex-col gap-2 rounded-2xl border border-border bg-card/40 p-4 sm:p-5">
             {[
               { Icon: ShieldIcon, text: "Quote and proof generated locally." },
               {
@@ -952,7 +952,7 @@ function SwapSuccessCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col gap-6 rounded-2xl border border-border bg-card/60 p-6 sm:p-8"
+      className="flex flex-col gap-6 rounded-2xl border border-border bg-card/60 p-4 sm:p-6 md:p-8"
     >
       <div className="flex items-start gap-3">
         <motion.span

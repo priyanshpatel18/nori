@@ -111,7 +111,7 @@ export default function PayrollPage() {
         description="Upload a CSV. One signature covers the whole batch, every recipient paid privately from the shielded pool."
       />
 
-      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-6 px-6 py-6 md:px-8 md:py-8">
+      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6 md:px-8 md:py-8">
         <DueBanner
           total={due.total}
           groups={due.groups}
@@ -157,7 +157,7 @@ export default function PayrollPage() {
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
               className={cn(
-                "group relative flex cursor-pointer flex-col items-center justify-center gap-4 overflow-hidden rounded-[8px] border border-dashed border-border bg-background/40 px-8 py-16 text-center transition-colors",
+                "group relative flex cursor-pointer flex-col items-center justify-center gap-4 overflow-hidden rounded-[8px] border border-dashed border-border bg-background/40 px-6 py-12 text-center transition-colors sm:px-8 sm:py-16",
                 "hover:border-primary/40 hover:bg-background/60",
                 drag && "border-primary/60 bg-primary/[0.04]",
               )}
@@ -376,7 +376,7 @@ function ParsedSummary({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
       transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-      className="flex min-h-0 flex-1 flex-col gap-5 rounded-[8px] border border-border bg-card/60 p-5 sm:p-6"
+      className="flex min-h-0 flex-1 flex-col gap-5 rounded-[8px] border border-border bg-card/60 p-4 sm:p-5 md:p-6"
     >
       <div className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 flex-col">
@@ -417,7 +417,7 @@ function ParsedSummary({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-0.5 rounded-md border border-border bg-background/60 p-0.5">
             {TOKEN_OPTIONS.filter((t) => isShieldTokenSupported(t.id)).map((t) => {
               const isActive = tokenId === t.id;
@@ -595,7 +595,7 @@ function Receipt({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
-      className="flex min-h-0 flex-1 flex-col gap-5 rounded-[8px] border border-border bg-background/40 p-5 sm:p-6"
+      className="flex min-h-0 flex-1 flex-col gap-5 rounded-[8px] border border-border bg-background/40 p-4 sm:p-5 md:p-6"
     >
       <div className="flex shrink-0 items-start gap-3">
         <motion.span
